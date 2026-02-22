@@ -1,3 +1,9 @@
+---
+layout: default
+title: Commands
+nav_order: 5
+---
+
 # Command Reference
 
 Complete reference for all fnkit CLI commands, flags, and options.

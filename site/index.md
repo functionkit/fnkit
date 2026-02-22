@@ -109,4 +109,5 @@ git add . && git commit -m "init" && git push
 - **[Reverse Proxy]({% link docs/proxy.md %})** — Automatic HTTPS and domain management via Caddy
 - **[Deploy Pipelines]({% link docs/deploy.md %})** — Git-push-to-deploy with Forgejo or GitHub Actions
 - **[MQTT Functions]({% link docs/mqtt.md %})** — Event-driven functions with MQTT topics
+- **[UNS Plugin]({% link docs/uns-plugin.md %})** — Industrial IoT: MQTT monitor → cache → PostgreSQL logger
 - **[Production Deployment]({% link docs/production.md %})** — Full server setup guide

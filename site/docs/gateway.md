@@ -1,3 +1,9 @@
+---
+layout: default
+title: API Gateway
+nav_order: 6
+---
+
 # API Gateway
 
 The FnKit gateway provides centralized token authentication and routing for all your function containers. It's an nginx-based reverse proxy with a built-in Bun orchestrator for multi-function pipelines.

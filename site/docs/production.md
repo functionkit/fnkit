@@ -1,3 +1,9 @@
+---
+layout: default
+title: Production Deployment
+nav_order: 12
+---
+
 # Production Deployment
 
 A step-by-step guide to deploying the full FnKit platform on a bare server — from Docker setup to git-push-to-deploy with automatic HTTPS.
