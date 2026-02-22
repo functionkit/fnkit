@@ -390,10 +390,12 @@ Full server setup on bare Ubuntu:
 4. Harden: ufw allow OpenSSH/80/443, enable; add swap
 5. Gateway: `fnkit gateway init && fnkit gateway build && fnkit gateway start --token secret`
 6. Cache: `fnkit cache start`
-7. Forgejo: Run as Docker container on port 3000, enable Actions
-8. Runner: `fnkit deploy runner`, configure .env, `docker compose up -d`
-9. HTTPS: `fnkit proxy init`, add domains, `docker compose up -d`
+7. Forgejo: Run as Docker container on port 3000 with `INSTALL_LOCK=true` to skip wizard, create admin user via `docker exec --user 1000 forgejo forgejo admin user create`, create API token, enable Actions
+8. Runner: `fnkit deploy runner`, get registration token via API or admin panel, configure .env, `docker compose up -d`
+9. HTTPS: `fnkit proxy init`, add domains, edit Caddyfile (git domain → forgejo:3000), `docker compose up -d`
 10. Deploy functions: `fnkit node my-api && cd my-api && fnkit deploy init && git push`
+
+Note: Forgejo refuses to run as root inside the container — always use `--user 1000` with `docker exec`. Git push requires authentication (token in URL, SSH keys, or credential helper).
 
 Final architecture:
 ```

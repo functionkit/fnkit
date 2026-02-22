@@ -1,9 +1,3 @@
----
-layout: default
-title: Production Deployment
-nav_order: 11
----
-
 # Production Deployment
 
 A step-by-step guide to deploying the full FnKit platform on a bare server — from Docker setup to git-push-to-deploy with automatic HTTPS.
@@ -90,7 +84,7 @@ curl http://localhost:8080/health
 # → OK
 ```
 
-See [Gateway docs]({% link docs/gateway.md %}) for authentication details and orchestrator setup.
+See [Gateway docs](gateway.md) for authentication details and orchestrator setup.
 
 ## 3. Shared Cache (optional)
 
@@ -99,7 +93,7 @@ fnkit cache init
 fnkit cache start
 ```
 
-Functions can now connect at `redis://fnkit-cache:6379`. See [Cache docs]({% link docs/cache.md %}).
+Functions can now connect at `redis://fnkit-cache:6379`. See [Cache docs](cache.md).
 
 ## 4. Forgejo (Git + CI/CD)
 
@@ -124,6 +118,12 @@ services:
       - USER_UID=1000
       - USER_GID=1000
       - FORGEJO__actions__ENABLED=true
+      - FORGEJO__security__INSTALL_LOCK=true
+      - FORGEJO__server__ROOT_URL=https://git.example.com/
+      - FORGEJO__server__DOMAIN=git.example.com
+      - FORGEJO__server__SSH_DOMAIN=git.example.com
+      - FORGEJO__server__SSH_PORT=2222
+      - FORGEJO__service__DISABLE_REGISTRATION=true
     networks:
       - fnkit-network
 
@@ -140,11 +140,31 @@ networks:
 docker compose up -d
 ```
 
-Visit `http://your-server:3000` to complete the initial setup wizard.
+Setting `INSTALL_LOCK=true` skips the setup wizard and configures Forgejo automatically. Replace `git.example.com` with your domain.
+
+### Create Admin User
+
+> **Note:** Forgejo refuses to run as root. Always use `--user 1000` with `docker exec`.
+
+```bash
+docker exec --user 1000 forgejo forgejo admin user create \
+  --admin --username your-admin --password your-password --email admin@example.com
+```
+
+### Create an API Token (for automation)
+
+```bash
+curl -s -X POST http://localhost:3000/api/v1/users/your-admin/tokens \
+  -u "your-admin:your-password" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"admin-token","scopes":["all"]}'
+```
+
+Save the `sha1` value from the response — this is your API token for managing repos and runners programmatically.
 
 ### Enable Actions
 
-If not set via environment variable, enable in: **Site Administration → Actions → Enable**
+Actions are enabled automatically via the `FORGEJO__actions__ENABLED=true` environment variable. If not set, enable in: **Site Administration → Actions → Enable**
 
 ## 5. Forgejo Runner
 
@@ -161,7 +181,12 @@ FORGEJO_INSTANCE=https://git.example.com
 FORGEJO_RUNNER_TOKEN=your-registration-token
 ```
 
-Get the registration token from: **Site Administration → Actions → Runners → Create new runner**
+Get the registration token from **Site Administration → Actions → Runners → Create new runner**, or via the API:
+
+```bash
+curl -s http://localhost:3000/api/v1/admin/runners/registration-token \
+  -H "Authorization: token your-api-token"
+```
 
 ```bash
 docker compose up -d
@@ -169,7 +194,7 @@ docker compose up -d
 
 Verify the runner appears in **Site Administration → Actions → Runners**.
 
-See [Deploy docs]({% link docs/deploy.md %}) for full runner configuration.
+See [Deploy docs](deploy.md) for full runner configuration.
 
 ## 6. HTTPS with Caddy
 
@@ -197,11 +222,20 @@ cd fnkit-proxy && docker compose up -d
 
 Make sure DNS A records for both domains point to your server. Caddy provisions TLS certificates automatically.
 
-See [Proxy docs]({% link docs/proxy.md %}) for more details.
+See [Proxy docs](proxy.md) for more details.
 
 ## 7. Deploy a Function
 
-On your local machine:
+First, create the repository on Forgejo (via the web UI or API):
+
+```bash
+curl -s -X POST http://localhost:3000/api/v1/user/repos \
+  -H "Authorization: token your-api-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-api","auto_init":false,"private":false}'
+```
+
+Then on your local machine:
 
 ```bash
 # Create a function
@@ -217,6 +251,8 @@ fnkit deploy init
 # Push to deploy
 git add . && git commit -m "init" && git push -u origin main
 ```
+
+> **Git authentication:** Forgejo requires authentication to push. You can either embed a token in the remote URL (`https://user:token@git.example.com/...`), use SSH keys via port 2222, or configure a [git credential helper](https://git-scm.com/docs/gitcredentials).
 
 The runner builds the image, deploys the container, and runs a health check.
 
@@ -307,3 +343,7 @@ fnkit doctor <runtime>
 # - C++: needs CMake
 # - .NET: needs dotnet SDK
 ```
+
+---
+
+← [Back to README](../README.md) · [Deploy →](deploy.md)
