@@ -1,0 +1,436 @@
+# FnKit — Functions as a Service CLI
+
+> Scaffold, develop, and deploy serverless functions using Docker and Git push. No external platforms required.
+
+FnKit is a CLI tool that creates function projects in 12 runtimes (9 HTTP + 3 MQTT), runs them locally, and deploys them via git-push-to-deploy pipelines. The platform consists of an nginx API gateway with token auth, a Valkey shared cache, a Caddy reverse proxy for automatic HTTPS, and CI/CD via Forgejo or GitHub Actions.
+
+Architecture: Internet → Caddy (TLS/domains) → fnkit-gateway (auth/routing) → Function containers. Deploy pipeline: git push → CI runner builds Docker image → deploys container → health check.
+
+Dependencies: Docker + Git.
+
+## Installation
+
+Binary downloads from GitHub releases:
+
+```
+# macOS Apple Silicon
+curl -L https://github.com/functionkit/fnkit/releases/latest/download/fnkit-macos-arm64 -o fnkit
+chmod +x fnkit && ./fnkit install
+
+# macOS Intel
+curl -L https://github.com/functionkit/fnkit/releases/latest/download/fnkit-macos-x64 -o fnkit
+chmod +x fnkit && ./fnkit install
+
+# Linux x64
+curl -L https://github.com/functionkit/fnkit/releases/latest/download/fnkit-linux-x64 -o fnkit
+chmod +x fnkit && ./fnkit install
+
+# Linux ARM64
+curl -L https://github.com/functionkit/fnkit/releases/latest/download/fnkit-linux-arm64 -o fnkit
+chmod +x fnkit && ./fnkit install
+
+# Windows (PowerShell as Administrator)
+Invoke-WebRequest -Uri https://github.com/functionkit/fnkit/releases/latest/download/fnkit-windows-x64.exe -OutFile fnkit.exe
+.\fnkit.exe install
+```
+
+From source (requires Bun):
+
+```
+git clone https://github.com/functionkit/fnkit.git
+cd fnkit && bun install && bun run build
+```
+
+The `install` command copies the binary to `/usr/local/bin/fnkit`. Uninstall with `fnkit uninstall`.
+
+## Quick Start
+
+```
+fnkit node my-api          # Create a Node.js function
+cd my-api
+fnkit dev                  # Run locally on port 8080
+fnkit deploy setup         # Set up CI/CD pipeline
+git add . && git commit -m "init" && git push   # Deploy
+```
+
+## Supported Runtimes
+
+### HTTP Runtimes (Google Cloud Functions Framework)
+
+- Node.js: `fnkit node <name>` — uses functions-framework-nodejs
+- Python: `fnkit python <name>` — uses functions-framework-python
+- Go: `fnkit go <name>` — uses functions-framework-go
+- Java: `fnkit java <name>` — uses functions-framework-java
+- Ruby: `fnkit ruby <name>` — uses functions-framework-ruby
+- .NET: `fnkit dotnet <name>` — uses functions-framework-dotnet
+- PHP: `fnkit php <name>` — uses functions-framework-php
+- Dart: `fnkit dart <name>` — uses functions-framework-dart
+- C++: `fnkit cpp <name>` — uses functions-framework-cpp
+
+HTTP functions listen on port 8080 and handle standard HTTP requests using the Google Cloud Functions Framework signature.
+
+### MQTT Runtimes (FnKit Function Framework)
+
+- Node.js: `fnkit node-mqtt <name>` — uses functionkit/function-framework-nodejs
+- Go: `fnkit go-mqtt <name>` — uses functionkit/function-framework-go
+- .NET: `fnkit dotnet-mqtt <name>` — uses functionkit/function-framework-dotnet
+
+MQTT functions subscribe to topics on an MQTT broker instead of listening on HTTP. Each function connects to a broker and subscribes to `{prefix}/{target}` (default: `fnkit/<function-name>`).
+
+### What Gets Generated
+
+Each `fnkit <runtime> <name>` command creates a project directory with:
+- Source file with a hello world handler using the framework's standard signature
+- Dockerfile with multi-stage build optimised for the runtime
+- docker-compose.yml pre-configured for fnkit-network and gateway integration
+- .gitignore tailored to the runtime
+- Dependencies installed automatically
+
+## Complete Command Reference
+
+### Create & Develop
+
+`fnkit new <runtime> <name>` — Create a new function project.
+Options: `--remote` / `-r` (git remote URL to add as origin).
+
+`fnkit <runtime> <name>` — Shorthand for `fnkit new`. All 12 runtimes work as direct commands.
+
+`fnkit init` — Initialize an existing directory as a function project. Auto-detects runtime from files.
+Options: `--runtime` (specify runtime explicitly).
+
+`fnkit dev` — Run function locally using the runtime's development server.
+Options: `--port` / `-p` (port, default 8080), `--target` (function target name).
+
+### Container Management
+
+`fnkit container ls` — List deployed fnkit function containers.
+Options: `--all` (show all Docker containers, not just fnkit-labelled).
+
+`fnkit container logs <name>` — Tail live logs from a running container.
+
+`fnkit container stop <name>` — Stop a running container.
+
+### API Gateway
+
+`fnkit gateway init` — Create gateway project files (fnkit-gateway/ directory).
+Options: `--output` (output directory, default fnkit-gateway).
+
+`fnkit gateway build` — Build the gateway Docker image.
+
+`fnkit gateway start` — Start the gateway container.
+Options: `--token` (Bearer token for auth; omit for open mode).
+
+`fnkit gateway stop` — Stop the gateway container.
+
+`fnkit gateway orchestrate add <name>` — Add a multi-function pipeline (stored in Valkey cache).
+Options: `--steps` (comma-separated function names, required), `--mode` (sequential or parallel, required).
+
+`fnkit gateway orchestrate ls` — List all defined pipelines.
+
+`fnkit gateway orchestrate remove <name>` — Remove a pipeline.
+
+### Shared Cache
+
+`fnkit cache init` — Create cache project files (fnkit-cache/ directory).
+Options: `--output` (default fnkit-cache).
+
+`fnkit cache start` — Start the Valkey cache container on fnkit-network.
+Options: `--maxmemory` (default 256mb).
+
+`fnkit cache stop` — Stop the cache container. Data persists in Docker volume.
+
+### Reverse Proxy
+
+`fnkit proxy init` — Create Caddy proxy project files (fnkit-proxy/ directory).
+Options: `--output` (default fnkit-proxy).
+
+`fnkit proxy add <domain>` — Add a domain route to the Caddyfile.
+
+`fnkit proxy remove <domain>` — Remove a domain route.
+
+`fnkit proxy ls` — List all configured domain routes.
+
+### Deploy Pipelines
+
+`fnkit deploy setup` — Interactive setup wizard. Checks prerequisites, generates workflow, prints checklist.
+Options: `--provider` (forgejo default, or github).
+
+`fnkit deploy init` — Generate deploy workflow file.
+Options: `--provider` (forgejo default, or github).
+
+`fnkit deploy runner` — Generate Forgejo Actions runner setup files (fnkit-runner/ directory).
+Options: `--output` (default fnkit-runner).
+
+`fnkit deploy status` — Check deployment status (pipeline config, git status, container health).
+
+### Docker Images
+
+`fnkit image build` — Build Docker image for current function.
+Options: `--tag` / `-t` (default fnkit-fn-<project>:latest), `--target`.
+
+`fnkit image push` — Build and push to a registry.
+Options: `--tag` / `-t`, `--registry` (required for push), `--target`.
+
+### Utilities
+
+`fnkit doctor [runtime]` — Check runtime dependencies are installed.
+`fnkit install` — Install fnkit to /usr/local/bin.
+`fnkit uninstall` — Remove from /usr/local/bin.
+`fnkit --version` / `fnkit -v` — Print version.
+`fnkit help` / `fnkit --help` / `fnkit -h` — Show help.
+
+## API Gateway
+
+The gateway provides centralized token authentication and routing for all function containers. It's an nginx reverse proxy with a built-in Bun-based orchestrator for multi-function pipelines.
+
+Architecture:
+```
+Request → Gateway (port 8080)
+  ├── /health              → 200 OK (no auth)
+  ├── /orchestrate/<name>  → Bun orchestrator (pipelines)
+  └── /<container-name>/*  → proxy to function container
+```
+
+All containers sit on fnkit-network. The gateway resolves container names via Docker DNS and proxies to port 8080 on each container.
+
+### Authentication
+
+Token mode (recommended): Start with `--token` to require Bearer token on all requests. Invalid/missing tokens return 401.
+
+Open mode: Start without `--token` for open access (development use).
+
+### Routing
+
+1. Request arrives at `http://gateway:8080/<container-name>/path`
+2. Validates Authorization header if auth enabled
+3. Resolves container via Docker DNS on fnkit-network
+4. Proxies to `http://<container-name>:8080/path`
+5. Returns function response
+
+If container doesn't exist: `{"error": "Function not found or not running", "container": "<name>"}`.
+
+### Orchestrator
+
+Multi-function pipelines stored in the shared Valkey cache at `fnkit:pipeline:<name>`.
+
+Sequential pipelines: Each step receives previous step's output. Final output returned to caller. If any step fails, pipeline stops.
+
+```
+fnkit gateway orchestrate add process-order --steps validate,charge,notify --mode sequential
+curl -H "Authorization: Bearer token" -d '{"orderId":123}' http://localhost:8080/orchestrate/process-order
+```
+
+Parallel pipelines: All steps called simultaneously with same input. Results merged into single object.
+
+```
+fnkit gateway orchestrate add enrich-user --steps profile,prefs,history --mode parallel
+curl -H "Authorization: Bearer token" -d '{"userId":456}' http://localhost:8080/orchestrate/enrich-user
+# → {"profile":{...},"prefs":{...},"history":{...}}
+```
+
+Pipeline config format (stored as JSON in Valkey):
+```json
+{"mode":"sequential","steps":["validate","charge","notify"]}
+```
+
+Gateway environment variables: FNKIT_AUTH_TOKEN, CACHE_URL (default redis://fnkit-cache:6379).
+
+## Shared Cache
+
+Redis-compatible cache powered by Valkey (Linux Foundation, BSD license). All function containers on fnkit-network access it at `redis://fnkit-cache:6379`. Also used for gateway orchestrator pipeline configs and function config storage.
+
+Configuration: 256MB max memory (configurable), volatile-lru eviction (keys with TTL evicted first, config keys without TTL persist), RDB snapshots every 60s, port 6379.
+
+### Language Examples
+
+Node.js (ioredis):
+```js
+const Redis = require('ioredis')
+const cache = new Redis(process.env.CACHE_URL || 'redis://fnkit-cache:6379')
+await cache.set('key', 'value', 'EX', 300)
+const value = await cache.get('key')
+```
+
+Python (redis-py):
+```python
+import os, redis
+cache = redis.from_url(os.environ.get('CACHE_URL', 'redis://fnkit-cache:6379'))
+cache.set('key', 'value', ex=300)
+value = cache.get('key')
+```
+
+Go (go-redis):
+```go
+rdb := redis.NewClient(&redis.Options{Addr: "fnkit-cache:6379"})
+rdb.Set(ctx, "key", "value", 5*time.Minute)
+value, _ := rdb.Get(ctx, "key").Result()
+```
+
+Java (Jedis):
+```java
+Jedis cache = new Jedis("fnkit-cache", 6379);
+cache.setex("key", 300, "value");
+```
+
+Ruby (redis-rb):
+```ruby
+cache = Redis.new(url: ENV.fetch('CACHE_URL', 'redis://fnkit-cache:6379'))
+cache.set('key', 'value', ex: 300)
+```
+
+.NET (StackExchange.Redis):
+```csharp
+var redis = ConnectionMultiplexer.Connect("fnkit-cache:6379");
+var db = redis.GetDatabase();
+db.StringSet("key", "value", TimeSpan.FromMinutes(5));
+```
+
+PHP (Predis):
+```php
+$cache = new Predis\Client(getenv('CACHE_URL') ?: 'redis://fnkit-cache:6379');
+$cache->setex('key', 300, 'value');
+```
+
+## Reverse Proxy
+
+Caddy-based reverse proxy for automatic HTTPS via Let's Encrypt. Sits in front of the gateway on fnkit-network.
+
+Architecture: Internet → Caddy (ports 80/443, auto-TLS) → fnkit-gateway (port 8080) → Function containers.
+
+Setup:
+```
+fnkit proxy init
+fnkit proxy add api.example.com
+cd fnkit-proxy && docker compose up -d
+```
+
+Point DNS A records to your server. Caddy provisions TLS certificates automatically. Port 80 must be open for ACME HTTP challenges.
+
+Caddyfile format:
+```
+api.example.com {
+    reverse_proxy fnkit-gateway:8080
+}
+```
+
+Reload after changes: `docker exec fnkit-proxy caddy reload --config /etc/caddy/Caddyfile`.
+
+Docker volumes: caddy-data (TLS certificates), caddy-config (runtime config). Ports: 80 (HTTP/ACME), 443 (HTTPS), 443/udp (HTTP/3).
+
+## Deploy Pipelines
+
+Git-push-to-deploy via Forgejo Actions (default) or GitHub Actions.
+
+### Forgejo Pipeline
+
+Flow: git push → Forgejo runner builds Docker image on host → deploys container → health check.
+
+The runner has Docker socket access, builds and deploys directly on the same machine — no registry needed.
+
+Setup:
+1. `fnkit deploy init` — creates .forgejo/workflows/deploy.yml
+2. `fnkit deploy runner` — creates fnkit-runner/ with docker-compose.yml, .env.example
+3. Configure .env: FORGEJO_INSTANCE (URL), FORGEJO_RUNNER_TOKEN (from admin panel)
+4. `docker compose up -d` in fnkit-runner/
+5. Enable Actions in Forgejo: Site Administration → Actions → Enable
+6. `git push` to deploy
+
+Pipeline steps: checkout → build image (fnkit-fn-<name>:latest) → tag previous as :prev → stop old container → start new on fnkit-network → health check → auto-rollback on failure → cleanup.
+
+### GitHub Pipeline
+
+Flow: git push → GitHub Actions builds image → pushes to GHCR → SSHs to server → pulls and deploys → health check.
+
+Setup:
+1. `fnkit deploy init --provider github` — creates .github/workflows/deploy.yml
+2. Configure GitHub Secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_GHCR_TOKEN
+3. `git push` to deploy
+
+Deploy labels on containers: fnkit.fn=true, fnkit.deployed=<ISO timestamp>, fnkit.rollback=true (if rolled back).
+
+## MQTT Functions
+
+Event-driven functions subscribing to MQTT topics instead of HTTP.
+
+Architecture: MQTT Broker → topic: fnkit/<handler> → handler container processes message.
+
+### Environment Variables
+
+Connection: MQTT_BROKER (default mqtt://localhost:1883), FUNCTION_TARGET, MQTT_CLIENT_ID.
+
+Topics: MQTT_TOPIC_PREFIX (default fnkit, subscribes to {prefix}/{target}), MQTT_SUBSCRIBE_TOPIC (override full topic, supports wildcards like sensors/#), MQTT_QOS (0/1/2, default 1).
+
+Authentication: MQTT_USERNAME, MQTT_PASSWORD.
+
+TLS: MQTT_CA, MQTT_CERT, MQTT_KEY, MQTT_REJECT_UNAUTHORIZED (default true).
+
+### Broker Options
+
+Mosquitto (lightweight): `docker run -d --name mosquitto --network fnkit-network -p 1883:1883 eclipse-mosquitto:2`
+
+EMQX (production): `docker run -d --name emqx --network fnkit-network -p 1883:1883 emqx/emqx:5`
+
+Cloud brokers: Set MQTT_BROKER to cloud endpoint with MQTT_USERNAME/MQTT_PASSWORD.
+
+### QoS Levels
+
+- 0 (at most once): fire and forget
+- 1 (at least once, default): delivered at least once, may duplicate
+- 2 (exactly once): highest overhead
+
+MQTT functions don't use the API gateway — they connect directly to the broker. They can still use the shared cache via CACHE_URL.
+
+## Production Deployment
+
+Full server setup on bare Ubuntu:
+
+1. Install Docker: `curl -fsSL https://get.docker.com | sh`
+2. Install fnkit: download binary, `./fnkit install`
+3. Create network: `docker network create fnkit-network`
+4. Harden: ufw allow OpenSSH/80/443, enable; add swap
+5. Gateway: `fnkit gateway init && fnkit gateway build && fnkit gateway start --token secret`
+6. Cache: `fnkit cache start`
+7. Forgejo: Run as Docker container on port 3000, enable Actions
+8. Runner: `fnkit deploy runner`, configure .env, `docker compose up -d`
+9. HTTPS: `fnkit proxy init`, add domains, `docker compose up -d`
+10. Deploy functions: `fnkit node my-api && cd my-api && fnkit deploy init && git push`
+
+Final architecture:
+```
+Internet
+  ├── api.example.com → Caddy (443) → fnkit-gateway (8080) → function containers
+  └── git.example.com → Caddy (443) → Forgejo (3000) → push → runner → deploy
+```
+
+Each function is an independent git repo. Push to main deploys automatically. Available at gateway path: `https://api.example.com/<function-name>`.
+
+## Project Structure
+
+```
+fnkit/
+├── src/
+│   ├── index.ts              # CLI entry point & help system
+│   ├── commands/
+│   │   ├── create.ts         # Create function project
+│   │   ├── init.ts           # Initialize existing project
+│   │   ├── run.ts            # Local dev server
+│   │   ├── publish.ts        # Docker build & push
+│   │   ├── containers.ts     # Container management
+│   │   ├── cache.ts          # Shared cache (Valkey)
+│   │   ├── gateway.ts        # API gateway management
+│   │   ├── proxy.ts          # Caddy proxy management
+│   │   ├── deploy.ts         # CI/CD pipelines (Forgejo/GitHub)
+│   │   ├── doctor.ts         # Runtime dependency checks
+│   │   └── global.ts         # Install/uninstall
+│   ├── runtimes/
+│   │   ├── base.ts           # Runtime interface
+│   │   └── *.ts              # Runtime definitions (12 runtimes)
+│   └── utils/
+│       ├── docker.ts         # Docker operations
+│       ├── git.ts            # Git operations
+│       ├── logger.ts         # Colored output
+│       └── shell.ts          # Command execution
+└── package.json
+```
+
+Built with Bun. Single binary compiled via `bun build --compile`. MIT license.

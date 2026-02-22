@@ -1,0 +1,12 @@
+{
+  "vsmqtt.brokerProfiles": [
+    {
+      "name": "mqtt.maxbain.es",
+      "host": "mqtt.maxbain.es",
+      "username": "ByXKFHjVPSwfPme2",
+      "password": "1YFmfrR0WchgjvcS54LHMTgkPBKr8Twq",
+      "port": 8883,
+      "clientId": "vsmqtt_client_5c51"
+    }
+  ]
+}
