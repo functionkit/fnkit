@@ -58,6 +58,7 @@ git add . && git commit -m "init" && git push
 | **Reverse Proxy**             | Automatic HTTPS via Caddy with Let's Encrypt                       |
 | **Git-push Deploy**           | CI/CD via Forgejo Actions or GitHub Actions                        |
 | **MQTT Functions**            | Event-driven functions that subscribe to MQTT topics               |
+| **UNS Plugin**                | Industrial IoT: MQTT monitor → cache → PostgreSQL logger           |
 | **Container Management**      | List, log, and stop deployed function containers                   |
 
 ## Supported Runtimes
@@ -93,6 +94,7 @@ git add . && git commit -m "init" && git push
 | `fnkit cache init\|start\|stop`            | Manage shared Valkey cache                  |
 | `fnkit proxy init\|add\|remove\|ls`        | Manage Caddy reverse proxy                  |
 | `fnkit deploy setup\|init\|runner\|status` | Manage CI/CD pipelines                      |
+| `fnkit mqtt uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
 | `fnkit image build\|push`                  | Build & push Docker images                  |
 | `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
 

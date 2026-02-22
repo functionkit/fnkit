@@ -333,6 +333,93 @@ fnkit image push --registry ghcr.io --tag myapp:v1
 | `--registry`  | Docker registry URL (required for push) |
 | `--target`    | Function target name                    |
 
+## MQTT / UNS Plugin
+
+Manage UNS (Unified Namespace) functions for industrial IoT data. See [MQTT docs](mqtt.md) for architecture and detailed usage.
+
+### `fnkit mqtt uns init [name]`
+
+Create a UNS topic monitor project. A Go MQTT function that subscribes to `v1.0/#` and caches all topic data in Valkey.
+
+```bash
+fnkit mqtt uns init                   # Creates uns-framework/
+fnkit mqtt uns init my-monitor        # Creates my-monitor/
+```
+
+### `fnkit mqtt uns start [name]`
+
+Build and start the UNS monitor container.
+
+```bash
+fnkit mqtt uns start
+```
+
+### `fnkit mqtt uns stop [name]`
+
+Stop the UNS monitor container.
+
+```bash
+fnkit mqtt uns stop
+```
+
+### `fnkit mqtt cache init [name]`
+
+Create a UNS cache reader project. A Node.js HTTP function that reads cached topic data and returns JSON with change detection.
+
+```bash
+fnkit mqtt cache init                 # Creates uns-cache/
+fnkit mqtt cache init my-reader       # Creates my-reader/
+```
+
+### `fnkit mqtt cache start [name]`
+
+Build and start the UNS cache reader container.
+
+```bash
+fnkit mqtt cache start
+```
+
+### `fnkit mqtt cache stop [name]`
+
+Stop the UNS cache reader container.
+
+```bash
+fnkit mqtt cache stop
+```
+
+### `fnkit mqtt log init [name]`
+
+Create a UNS PostgreSQL logger project. A Go HTTP function that logs cache changes to PostgreSQL.
+
+```bash
+fnkit mqtt log init                   # Creates uns-log/
+fnkit mqtt log init uns-log-line1     # Creates uns-log-line1/
+```
+
+### `fnkit mqtt log start [name]`
+
+Build and start the UNS logger container.
+
+```bash
+fnkit mqtt log start
+```
+
+### `fnkit mqtt log stop [name]`
+
+Stop the UNS logger container.
+
+```bash
+fnkit mqtt log stop
+```
+
+### `fnkit mqtt status`
+
+Show status of all MQTT/UNS components.
+
+```bash
+fnkit mqtt status
+```
+
 ## Utilities
 
 ### `fnkit doctor [runtime]`

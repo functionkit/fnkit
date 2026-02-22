@@ -406,6 +406,59 @@ Internet
 
 Each function is an independent git repo. Push to main deploys automatically. Available at gateway path: `https://api.example.com/<function-name>`.
 
+## MQTT / UNS Plugin
+
+FnKit includes a plugin system (`src/plugins/`) with a built-in MQTT/UNS plugin for industrial IoT workflows using the [Unified Namespace (UNS) Framework](https://www.unsframework.com).
+
+### Plugin Commands
+
+`fnkit mqtt uns init [name]` — Create UNS topic monitor (Go MQTT function). Subscribes to `v1.0/#` and caches all messages to Valkey.
+
+`fnkit mqtt uns start [name]` — Build and start the monitor container.
+
+`fnkit mqtt uns stop [name]` — Stop the monitor container.
+
+`fnkit mqtt cache init [name]` — Create UNS cache reader (Node.js HTTP function). Reads cached topic data and returns JSON with change detection.
+
+`fnkit mqtt cache start [name]` — Build and start the cache reader container.
+
+`fnkit mqtt cache stop [name]` — Stop the cache reader container.
+
+`fnkit mqtt log init [name]` — Create UNS PostgreSQL logger (Go HTTP function). Logs cache changes to PostgreSQL. Config stored in Valkey.
+
+`fnkit mqtt log start [name]` — Build and start the logger container.
+
+`fnkit mqtt log stop [name]` — Stop the logger container.
+
+`fnkit mqtt status` — Show status of all MQTT/UNS components.
+
+### UNS Architecture
+
+```
+MQTT Broker (v1.0/#) → uns-framework (Go MQTT) → fnkit-cache (Valkey)
+                                                       ↓
+                                                  uns-cache (Node.js HTTP → JSON API)
+                                                  uns-log (Go HTTP → PostgreSQL)
+```
+
+### Cache Key Layout
+
+uns:topics (SET) — all discovered topic paths. uns:data:<topic> (STRING) — latest payload. uns:prev:<topic> (STRING) — previous payload. uns:meta:<topic> (STRING) — metadata JSON with last_updated, count, first_seen.
+
+### UNS Monitor Configuration (.env)
+
+MQTT_BROKER (mqtt:// or mqtts://), FUNCTION_TARGET=unsMonitor, MQTT_TOPIC_PREFIX=v1.0, MQTT_SUBSCRIBE_TOPIC=v1.0/#, MQTT_QOS=1, MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD, MQTT_CA (TLS cert path), MQTT_CERT (mTLS client cert), MQTT_KEY (mTLS client key), MQTT_REJECT_UNAUTHORIZED=true, CACHE_URL=redis://fnkit-cache:6379, CACHE_KEY_PREFIX=uns, CACHE_TTL=0.
+
+TLS/mTLS: Place certs in `certs/` directory. Docker compose mounts `./certs:/certs:ro`. Set MQTT_BROKER to `mqtts://` and configure MQTT_CA, MQTT_CERT, MQTT_KEY paths.
+
+### UNS Cache Reader Configuration (.env)
+
+FUNCTION_TARGET=uns-cache, CACHE_URL=redis://fnkit-cache:6379, CACHE_KEY_PREFIX=uns.
+
+### UNS Logger Configuration (.env + Valkey)
+
+FUNCTION_TARGET=uns-log, DATABASE_URL (PostgreSQL connection string), CACHE_URL=redis://fnkit-cache:6379, CACHE_KEY_PREFIX=uns. Topic config stored in Valkey at `fnkit:config:<FUNCTION_TARGET>` as JSON: `{"table":"uns_log","topics":["v1.0/enterprise/site/area/line/tag"]}`.
+
 ## Project Structure
 
 ```
@@ -424,6 +477,14 @@ fnkit/
 │   │   ├── deploy.ts         # CI/CD pipelines (Forgejo/GitHub)
 │   │   ├── doctor.ts         # Runtime dependency checks
 │   │   └── global.ts         # Install/uninstall
+│   ├── plugins/
+│   │   ├── base.ts           # Plugin interface
+│   │   ├── index.ts          # Plugin registry
+│   │   └── mqtt/             # MQTT / UNS plugin
+│   │       ├── index.ts      # Plugin definition & command routing
+│   │       ├── uns.ts        # UNS topic monitor (scaffold + start/stop)
+│   │       ├── cache.ts      # UNS cache reader (scaffold + start/stop)
+│   │       └── log.ts        # UNS PostgreSQL logger (scaffold + start/stop)
 │   ├── runtimes/
 │   │   ├── base.ts           # Runtime interface
 │   │   └── *.ts              # Runtime definitions (12 runtimes)

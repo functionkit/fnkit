@@ -215,6 +215,114 @@ Default is QoS 1 (at least once), which is suitable for most use cases.
 - Functions can also use the [shared cache](cache.md) via `CACHE_URL`
 - The `CACHE_URL=redis://fnkit-cache:6379` environment variable is set in generated Dockerfiles
 
+## UNS Plugin (`fnkit mqtt`)
+
+FnKit includes a built-in plugin for [Unified Namespace (UNS)](https://www.unsframework.com) workflows — a common industrial IoT pattern where all enterprise data flows through a hierarchical MQTT topic structure following ISA-95.
+
+The plugin provides three pre-built functions that work together:
+
+```
+MQTT Broker (v1.0/#)
+    │
+    ▼
+uns-framework (Go MQTT function)
+    │  Subscribes to v1.0/#
+    │  Caches every message to Valkey
+    ▼
+fnkit-cache (Valkey)
+    │
+    ├── uns-cache (Node.js HTTP function)
+    │   Reads cached topics, returns JSON with change detection
+    │
+    └── uns-log (Go HTTP function)
+        Logs changed values to PostgreSQL
+```
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `fnkit mqtt uns init [name]` | Scaffold UNS topic monitor (Go MQTT → Valkey) |
+| `fnkit mqtt uns start [name]` | Build & start monitor container |
+| `fnkit mqtt uns stop [name]` | Stop monitor container |
+| `fnkit mqtt cache init [name]` | Scaffold UNS cache reader (Node.js HTTP → JSON) |
+| `fnkit mqtt cache start [name]` | Build & start cache reader |
+| `fnkit mqtt cache stop [name]` | Stop cache reader |
+| `fnkit mqtt log init [name]` | Scaffold PostgreSQL logger (Go HTTP → Postgres) |
+| `fnkit mqtt log start [name]` | Build & start logger |
+| `fnkit mqtt log stop [name]` | Stop logger |
+| `fnkit mqtt status` | Show status of all UNS components |
+
+### Quick Start
+
+```bash
+# 1. Start the shared cache
+fnkit cache start
+
+# 2. Create and configure the UNS monitor
+fnkit mqtt uns init
+cd uns-framework
+cp .env.example .env
+# Edit .env: set MQTT_BROKER, auth, TLS certs as needed
+docker compose up -d
+
+# 3. Create the cache reader (HTTP API for cached data)
+cd ..
+fnkit mqtt cache init
+cd uns-cache
+cp .env.example .env
+docker compose up -d
+
+# 4. (Optional) Create the PostgreSQL logger
+cd ..
+fnkit mqtt log init
+cd uns-log
+cp .env.example .env
+# Set config in Valkey:
+docker exec fnkit-cache valkey-cli SET fnkit:config:uns-log \
+  '{"table":"uns_log","topics":["v1.0/enterprise/site/area/line/temperature"]}'
+docker compose up -d
+```
+
+### TLS / mTLS Support
+
+The UNS monitor (`fnkit mqtt uns init`) includes full TLS/mTLS support:
+
+1. Place certificates in the `certs/` directory
+2. Configure paths in `.env`:
+
+```env
+# TLS (server verification)
+MQTT_BROKER=mqtts://broker:8883
+MQTT_CA=/certs/ca.crt
+
+# mTLS (mutual authentication)
+MQTT_CERT=/certs/client.crt
+MQTT_KEY=/certs/client.key
+
+# Self-signed certificates
+MQTT_REJECT_UNAUTHORIZED=false
+```
+
+The `docker-compose.yml` mounts `./certs:/certs:ro` automatically.
+
+### Cache Key Layout
+
+The UNS monitor writes to Valkey with this key structure:
+
+| Key Pattern | Type | Description |
+|---|---|---|
+| `uns:topics` | SET | All discovered topic paths |
+| `uns:data:<topic>` | STRING | Latest payload (raw JSON) |
+| `uns:prev:<topic>` | STRING | Previous payload (raw JSON) |
+| `uns:meta:<topic>` | STRING | `{"last_updated", "count", "first_seen"}` |
+
+Query from CLI:
+```bash
+docker exec fnkit-cache valkey-cli SMEMBERS uns:topics
+docker exec fnkit-cache valkey-cli GET "uns:data:v1.0/enterprise/site/area/line/temperature"
+```
+
 ---
 
 ← [Back to README](../README.md) · [Runtimes →](runtimes.md) · [Cache →](cache.md)

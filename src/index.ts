@@ -12,6 +12,7 @@ import { gateway } from './commands/gateway'
 import { deploy } from './commands/deploy'
 import { proxy } from './commands/proxy'
 import { cache } from './commands/cache'
+import { getPlugin, getPluginNames } from './plugins'
 import logger from './utils/logger'
 
 const VERSION = '0.7.7'
@@ -51,6 +52,8 @@ Commands:
   proxy ...                          Manage reverse proxy (Caddy)
   deploy ...                         Manage CI/CD deploy pipeline
   image ...                          Build & push Docker images
+
+  mqtt ...                           MQTT / UNS plugin commands
 
   doctor [runtime]                   Check runtime dependencies
   install                            Install fnkit globally
@@ -200,6 +203,129 @@ Examples:
   fnkit image build --tag myapp:v1      Build with custom tag
   fnkit image push --registry ghcr.io   Build and push to registry
 `)
+}
+
+function showMqttHelp() {
+  console.log(`
+fnkit mqtt — MQTT / UNS Plugin
+
+Unified Namespace (UNS) functions for industrial IoT data.
+Monitors MQTT topics, caches data in Valkey, and logs changes to PostgreSQL.
+
+Usage:
+  fnkit mqtt <command> <subcommand> [name]
+
+Commands:
+  uns <init|start|stop> [name]     UNS topic monitor (Go MQTT → Valkey cache)
+  cache <init|start|stop> [name]   UNS cache reader (Node.js HTTP → JSON)
+  log <init|start|stop> [name]     UNS PostgreSQL logger (Go HTTP → Postgres)
+  status                           Show status of all MQTT/UNS components
+
+Architecture:
+  MQTT Broker → uns-framework (v1.0/#) → fnkit-cache (Valkey)
+                                              ↓
+                                         uns-cache (HTTP JSON API)
+                                         uns-log (PostgreSQL logger)
+
+Examples:
+  fnkit mqtt uns init                   Create UNS topic monitor
+  fnkit mqtt uns start                  Build & start monitor
+  fnkit mqtt cache init                 Create UNS cache reader
+  fnkit mqtt cache start                Build & start cache reader
+  fnkit mqtt log init                   Create PostgreSQL logger
+  fnkit mqtt log start                  Build & start logger
+  fnkit mqtt status                     Check all components
+
+Quick Start:
+  fnkit mqtt uns init && cd uns-framework
+  cp .env.example .env                  # Configure MQTT broker
+  docker compose up -d                  # Start monitoring
+`)
+}
+
+function showMqttCommandHelp(command: string) {
+  switch (command) {
+    case 'uns':
+      console.log(`
+fnkit mqtt uns — UNS Topic Monitor
+
+A Go MQTT function that subscribes to v1.0/# and caches all topic data
+in the shared Valkey cache. Uses the FnKit Function Framework for Go.
+
+Usage:
+  fnkit mqtt uns <command> [name]
+
+Commands:
+  init [name]           Create UNS monitor project (default: uns-framework)
+  start [name]          Build and start the monitor container
+  stop [name]           Stop the monitor container
+
+The monitor writes to Valkey cache:
+  uns:topics            → SET of all discovered topic paths
+  uns:data:<topic>      → latest payload (raw JSON)
+  uns:prev:<topic>      → previous payload (raw JSON)
+  uns:meta:<topic>      → metadata (last_updated, count, first_seen)
+
+Examples:
+  fnkit mqtt uns init                   Create with default name
+  fnkit mqtt uns init my-monitor        Create with custom name
+  fnkit mqtt uns start                  Build & start
+  fnkit mqtt uns stop                   Stop container
+`)
+      break
+    case 'cache':
+      console.log(`
+fnkit mqtt cache — UNS Cache Reader
+
+A Node.js HTTP function that reads UNS topic data from the shared Valkey
+cache (populated by uns-framework) and returns JSON with change detection.
+
+Usage:
+  fnkit mqtt cache <command> [name]
+
+Commands:
+  init [name]           Create cache reader project (default: uns-cache)
+  start [name]          Build and start the cache reader container
+  stop [name]           Stop the cache reader container
+
+Accessible via the fnkit gateway:
+  curl http://localhost:8080/uns-cache                    # All topics
+  curl -d '{"topics":["v1.0/..."]}' http://localhost:8080/uns-cache  # Specific
+
+Examples:
+  fnkit mqtt cache init                 Create with default name
+  fnkit mqtt cache start                Build & start
+  fnkit mqtt cache stop                 Stop container
+`)
+      break
+    case 'log':
+      console.log(`
+fnkit mqtt log — UNS PostgreSQL Logger
+
+A Go HTTP function that reads UNS topic data from the shared Valkey cache
+and logs snapshot rows to PostgreSQL when any value changes.
+
+Config is stored in Valkey (not .env):
+  docker exec fnkit-cache valkey-cli SET fnkit:config:uns-log '{"table":"uns_log","topics":[...]}'
+
+Usage:
+  fnkit mqtt log <command> [name]
+
+Commands:
+  init [name]           Create logger project (default: uns-log)
+  start [name]          Build and start the logger container
+  stop [name]           Stop the logger container
+
+Examples:
+  fnkit mqtt log init                   Create with default name
+  fnkit mqtt log init uns-log-line1     Create named instance
+  fnkit mqtt log start                  Build & start
+  fnkit mqtt log stop                   Stop container
+`)
+      break
+    default:
+      console.log(`Run "fnkit mqtt" for available commands.`)
+  }
 }
 
 function showVersion() {
@@ -521,6 +647,57 @@ Examples:
         break
 
       // ─────────────────────────────────────────────────────────────────
+      // Plugin system: fnkit <plugin> <command> <subcommand> [args]
+      // ─────────────────────────────────────────────────────────────────
+
+      case 'mqtt': {
+        const plugin = getPlugin('mqtt')
+        if (!plugin) {
+          logger.error('MQTT plugin not found')
+          process.exit(1)
+          break
+        }
+
+        const pluginCmd = positionalArgs[0]
+        if (!pluginCmd || options.help || options.h) {
+          showMqttHelp()
+          process.exit(0)
+          break
+        }
+
+        // Find the matching plugin command
+        const cmd = plugin.commands.find((c) => c.name === pluginCmd)
+        if (!cmd) {
+          logger.error(`Unknown mqtt command: ${pluginCmd}`)
+          logger.info(
+            `Available: ${plugin.commands.map((c) => c.name).join(', ')}`,
+          )
+          process.exit(1)
+          break
+        }
+
+        // For commands with subcommands (init/start/stop)
+        const subcmd = positionalArgs[1] || ''
+        const cmdArgs = positionalArgs.slice(2)
+
+        // If no subcommand and the command has subcommands, show help
+        if (!subcmd && cmd.subcommands.length > 0) {
+          showMqttCommandHelp(cmd.name)
+          process.exit(0)
+          break
+        }
+
+        // For status (no subcommands), pass empty string
+        const pluginSuccess = await cmd.handler(
+          subcmd || '',
+          cmdArgs,
+          options,
+        )
+        process.exit(pluginSuccess ? 0 : 1)
+        break
+      }
+
+      // ─────────────────────────────────────────────────────────────────
       // Shorthand: fnkit <runtime> <name> → fnkit new <runtime> <name>
       // ─────────────────────────────────────────────────────────────────
 
@@ -535,6 +712,11 @@ Examples:
             remote: options.remote as string,
           })
           process.exit(shorthandSuccess ? 0 : 1)
+        }
+        // Check if command is a plugin name
+        else if (getPlugin(command)) {
+          logger.info(`Run "fnkit ${command}" with no args for help`)
+          process.exit(0)
         } else {
           logger.error(`Unknown command: ${command}`)
           logger.info('Run "fnkit help" for usage information')
