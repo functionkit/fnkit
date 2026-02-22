@@ -1,22 +1,22 @@
 title: FnKit
-description: "Scaffold, develop, and deploy serverless functions using Docker and Git push. No external platforms required."
-url: "https://maxbaines.github.io"
-baseurl: "/fnkit"
+description: 'Scaffold, develop, and deploy serverless functions using Docker and Git push. No external platforms required.'
+url: 'https://functionkit.github.io'
+baseurl: '/fnkit'
 
 theme: just-the-docs
 
 # Repository
 gh_edit_link: true
-gh_edit_link_text: "Edit this page on GitHub"
-gh_edit_repository: "https://github.com/maxbaines/fnkit"
-gh_edit_branch: "main"
-gh_edit_source: "site"
-gh_edit_view_mode: "edit"
+gh_edit_link_text: 'Edit this page on GitHub'
+gh_edit_repository: 'https://github.com/functionkit/fnkit'
+gh_edit_branch: 'main'
+gh_edit_source: 'site'
+gh_edit_view_mode: 'edit'
 
 # Aux links (top right)
 aux_links:
-  "FnKit on GitHub":
-    - "https://github.com/maxbaines/fnkit"
+  'FnKit on GitHub':
+    - 'https://github.com/functionkit/fnkit'
 
 aux_links_new_tab: true
 
@@ -32,11 +32,11 @@ search:
   button: false
 
 # Footer
-footer_content: "FnKit &mdash; Functions as a Service CLI. MIT License."
+footer_content: 'FnKit &mdash; Functions as a Service CLI. MIT License.'
 
 # Back to top link
 back_to_top: true
-back_to_top_text: "Back to top"
+back_to_top_text: 'Back to top'
 
 # Color scheme
 color_scheme: dark

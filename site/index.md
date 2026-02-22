@@ -2,18 +2,19 @@
 layout: default
 title: Home
 nav_order: 1
-description: "FnKit — Scaffold, develop, and deploy serverless functions using Docker and Git push."
+description: 'FnKit — Scaffold, develop, and deploy serverless functions using Docker and Git push.'
 permalink: /
 ---
 
 # FnKit — Functions as a Service CLI
+
 {: .fs-9 }
 
 Scaffold, develop, and deploy serverless functions using Docker and Git push. No external platforms required.
 {: .fs-6 .fw-300 }
 
 [Get Started]({% link docs/getting-started.md %}){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
-[View on GitHub](https://github.com/maxbaines/fnkit){: .btn .fs-5 .mb-4 .mb-md-0 }
+[View on GitHub](https://github.com/functionkit/fnkit){: .btn .fs-5 .mb-4 .mb-md-0 }
 
 ---
 
@@ -47,53 +48,53 @@ git add . && git commit -m "init" && git push
 
 ## Features
 
-| Feature | Description |
-|:--------|:------------|
-| **Multi-runtime scaffolding** | Create functions in 9 HTTP runtimes + 3 MQTT runtimes |
-| **Local development** | `fnkit dev` runs your function locally with hot reload |
-| **API Gateway** | Nginx-based auth gateway with token validation and routing |
-| **Orchestrator** | Multi-function pipelines — sequential chaining or parallel fan-out |
-| **Shared Cache** | Redis-compatible Valkey cache accessible by all functions |
-| **Reverse Proxy** | Automatic HTTPS via Caddy with Let's Encrypt |
-| **Git-push Deploy** | CI/CD via Forgejo Actions or GitHub Actions |
-| **MQTT Functions** | Event-driven functions that subscribe to MQTT topics |
-| **Container Management** | List, log, and stop deployed function containers |
+| Feature                       | Description                                                        |
+| :---------------------------- | :----------------------------------------------------------------- |
+| **Multi-runtime scaffolding** | Create functions in 9 HTTP runtimes + 3 MQTT runtimes              |
+| **Local development**         | `fnkit dev` runs your function locally with hot reload             |
+| **API Gateway**               | Nginx-based auth gateway with token validation and routing         |
+| **Orchestrator**              | Multi-function pipelines — sequential chaining or parallel fan-out |
+| **Shared Cache**              | Redis-compatible Valkey cache accessible by all functions          |
+| **Reverse Proxy**             | Automatic HTTPS via Caddy with Let's Encrypt                       |
+| **Git-push Deploy**           | CI/CD via Forgejo Actions or GitHub Actions                        |
+| **MQTT Functions**            | Event-driven functions that subscribe to MQTT topics               |
+| **Container Management**      | List, log, and stop deployed function containers                   |
 
 ## Supported Runtimes
 
 ### HTTP (Google Cloud Functions Framework)
 
-| Runtime | Command | | Runtime | Command |
-|:--------|:--------|---|:--------|:--------|
-| Node.js | `fnkit node <name>` | | Ruby | `fnkit ruby <name>` |
-| Python | `fnkit python <name>` | | .NET | `fnkit dotnet <name>` |
-| Go | `fnkit go <name>` | | PHP | `fnkit php <name>` |
-| Java | `fnkit java <name>` | | Dart | `fnkit dart <name>` |
-| C++ | `fnkit cpp <name>` | | | |
+| Runtime | Command               |     | Runtime | Command               |
+| :------ | :-------------------- | --- | :------ | :-------------------- |
+| Node.js | `fnkit node <name>`   |     | Ruby    | `fnkit ruby <name>`   |
+| Python  | `fnkit python <name>` |     | .NET    | `fnkit dotnet <name>` |
+| Go      | `fnkit go <name>`     |     | PHP     | `fnkit php <name>`    |
+| Java    | `fnkit java <name>`   |     | Dart    | `fnkit dart <name>`   |
+| C++     | `fnkit cpp <name>`    |     |         |                       |
 
 ### MQTT (FnKit Function Framework)
 
-| Runtime | Command |
-|:--------|:--------|
-| Node.js | `fnkit node-mqtt <name>` |
-| Go | `fnkit go-mqtt <name>` |
-| .NET | `fnkit dotnet-mqtt <name>` |
+| Runtime | Command                    |
+| :------ | :------------------------- |
+| Node.js | `fnkit node-mqtt <name>`   |
+| Go      | `fnkit go-mqtt <name>`     |
+| .NET    | `fnkit dotnet-mqtt <name>` |
 
 ## Commands
 
-| Command | Description |
-|:--------|:------------|
-| `fnkit <runtime> <name>` | Create a new function project |
-| `fnkit init` | Initialize existing directory as a function |
-| `fnkit dev` | Run function locally |
-| `fnkit container ls\|logs\|stop` | Manage deployed containers |
-| `fnkit gateway init\|build\|start\|stop` | Manage API gateway |
-| `fnkit gateway orchestrate ...` | Manage multi-function pipelines |
-| `fnkit cache init\|start\|stop` | Manage shared Valkey cache |
-| `fnkit proxy init\|add\|remove\|ls` | Manage Caddy reverse proxy |
-| `fnkit deploy setup\|init\|runner\|status` | Manage CI/CD pipelines |
-| `fnkit image build\|push` | Build & push Docker images |
-| `fnkit doctor [runtime]` | Check runtime dependencies |
+| Command                                    | Description                                 |
+| :----------------------------------------- | :------------------------------------------ |
+| `fnkit <runtime> <name>`                   | Create a new function project               |
+| `fnkit init`                               | Initialize existing directory as a function |
+| `fnkit dev`                                | Run function locally                        |
+| `fnkit container ls\|logs\|stop`           | Manage deployed containers                  |
+| `fnkit gateway init\|build\|start\|stop`   | Manage API gateway                          |
+| `fnkit gateway orchestrate ...`            | Manage multi-function pipelines             |
+| `fnkit cache init\|start\|stop`            | Manage shared Valkey cache                  |
+| `fnkit proxy init\|add\|remove\|ls`        | Manage Caddy reverse proxy                  |
+| `fnkit deploy setup\|init\|runner\|status` | Manage CI/CD pipelines                      |
+| `fnkit image build\|push`                  | Build & push Docker images                  |
+| `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
 
 ## Documentation
 
