@@ -1,6 +1,6 @@
 {
   "name": "fnkit",
-  "version": "0.7.7",
+  "version": "0.8.0",
   "description": "Functions as a Service CLI - scaffold and deploy serverless functions without the netes",
   "module": "src/index.ts",
   "type": "module",

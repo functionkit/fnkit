@@ -15,7 +15,7 @@ import { cache } from './commands/cache'
 import { getPlugin, getPluginNames } from './plugins'
 import logger from './utils/logger'
 
-const VERSION = '0.7.7'
+const VERSION = '0.8.0'
 
 // Canonical runtime names only
 const CANONICAL_RUNTIMES = [
