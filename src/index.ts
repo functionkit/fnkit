@@ -211,35 +211,40 @@ fnkit mqtt — MQTT / UNS Plugin
 
 Unified Namespace (UNS) functions for industrial IoT data.
 Monitors MQTT topics, caches data in Valkey, and logs changes to PostgreSQL.
+OPC-UA bridge for reading tags from OPC-UA servers and publishing to MQTT.
 
 Usage:
   fnkit mqtt <command> <subcommand> [name]
 
 Commands:
-  uns <init|start|stop> [name]     UNS topic monitor (Go MQTT → Valkey cache)
-  cache <init|start|stop> [name]   UNS cache reader (Node.js HTTP → JSON)
-  log <init|start|stop> [name]     UNS PostgreSQL logger (Go HTTP → Postgres)
-  status                           Show status of all MQTT/UNS components
+  opcua <init|start|stop|build> [name] OPC-UA → MQTT bridge (Go → standalone .exe)
+  uns <init|start|stop> [name]         UNS topic monitor (Go MQTT → Valkey cache)
+  cache <init|start|stop> [name]       UNS cache reader (Node.js HTTP → JSON)
+  log <init|start|stop> [name]         UNS PostgreSQL logger (Go HTTP → Postgres)
+  status                               Show status of all components
 
 Architecture:
-  MQTT Broker → uns-framework (v1.0/#) → fnkit-cache (Valkey)
-                                              ↓
-                                         uns-cache (HTTP JSON API)
-                                         uns-log (PostgreSQL logger)
+  OPC-UA Server → opcua-bridge → MQTT Broker → uns-framework (v1.0/#)
+                                                     ↓
+                                                fnkit-cache (Valkey)
+                                                     ↓
+                                                uns-cache (HTTP JSON API)
+                                                uns-log (PostgreSQL logger)
 
 Examples:
+  fnkit mqtt opcua init                 Create OPC-UA → MQTT bridge
+  fnkit mqtt opcua start                Build & start bridge (Docker)
+  fnkit mqtt opcua build                Cross-compile standalone binaries (.exe)
   fnkit mqtt uns init                   Create UNS topic monitor
   fnkit mqtt uns start                  Build & start monitor
   fnkit mqtt cache init                 Create UNS cache reader
-  fnkit mqtt cache start                Build & start cache reader
   fnkit mqtt log init                   Create PostgreSQL logger
-  fnkit mqtt log start                  Build & start logger
   fnkit mqtt status                     Check all components
 
-Quick Start:
-  fnkit mqtt uns init && cd uns-framework
-  cp .env.example .env                  # Configure MQTT broker
-  docker compose up -d                  # Start monitoring
+Quick Start (OPC-UA):
+  fnkit mqtt opcua init && cd opcua-bridge
+  vi tags.yaml                          # Configure OPC-UA tags
+  docker compose up -d                  # Start bridge
 `)
 }
 
@@ -321,6 +326,38 @@ Examples:
   fnkit mqtt log init uns-log-line1     Create named instance
   fnkit mqtt log start                  Build & start
   fnkit mqtt log stop                   Stop container
+`)
+      break
+    case 'opcua':
+      console.log(`
+fnkit mqtt opcua — OPC-UA → MQTT Bridge
+
+A Go application that connects to an OPC-UA server, reads tags (poll or
+subscribe), and publishes data to MQTT topics. Runs as a Docker container
+or a standalone binary (.exe) on edge devices.
+
+Usage:
+  fnkit mqtt opcua <command> [name]
+
+Commands:
+  init [name]           Create OPC-UA bridge project (default: opcua-bridge)
+  start [name]          Build and start the bridge container
+  stop [name]           Stop the bridge container
+  build [name]          Cross-compile standalone binaries for all platforms
+
+Tag configuration is in tags.yaml with groups:
+  - poll mode:      Read tags on a fixed interval (e.g. every 10s, 60s)
+  - subscribe mode: OPC-UA subscription (real-time server push)
+
+Security: None, Basic256Sha256, Sign, SignAndEncrypt, certs, insecure mode
+MQTT: plain, TLS, mTLS, username/password, insecure mode
+
+Examples:
+  fnkit mqtt opcua init                 Create with default name
+  fnkit mqtt opcua init mill8-bridge    Create with custom name
+  fnkit mqtt opcua start                Build & start (Docker)
+  fnkit mqtt opcua build                Cross-compile .exe for edge
+  fnkit mqtt opcua stop                 Stop container
 `)
       break
     default:

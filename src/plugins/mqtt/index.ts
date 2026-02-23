@@ -6,6 +6,7 @@ import logger from '../../utils/logger'
 import { unsInit, unsStart, unsStop, unsStatus } from './uns'
 import { unsCacheInit, unsCacheStart, unsCacheStop, unsCacheStatus } from './cache'
 import { unsLogInit, unsLogStart, unsLogStop, unsLogStatus } from './log'
+import { opcuaInit, opcuaStart, opcuaStop, opcuaBuild, opcuaStatus } from './opcua'
 
 export const mqttPlugin = createPlugin({
   name: 'mqtt',
@@ -74,6 +75,28 @@ export const mqttPlugin = createPlugin({
       },
     },
     {
+      name: 'opcua',
+      description:
+        'OPC-UA → MQTT bridge — Go app that reads OPC-UA tags and publishes to MQTT',
+      subcommands: ['init', 'start', 'stop', 'build'],
+      handler: async (subcmd, args, options) => {
+        switch (subcmd) {
+          case 'init':
+            return opcuaInit(args, options)
+          case 'start':
+            return opcuaStart(args, options)
+          case 'stop':
+            return opcuaStop(args, options)
+          case 'build':
+            return opcuaBuild(args, options)
+          default:
+            logger.error(`Unknown opcua command: ${subcmd}`)
+            logger.info('Available: init, start, stop, build')
+            return false
+        }
+      },
+    },
+    {
       name: 'status',
       description: 'Show status of all MQTT/UNS components',
       subcommands: [],
@@ -82,6 +105,7 @@ export const mqttPlugin = createPlugin({
         await unsStatus()
         await unsCacheStatus()
         await unsLogStatus()
+        await opcuaStatus()
         return true
       },
     },

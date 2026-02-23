@@ -215,6 +215,183 @@ Default is QoS 1 (at least once), which is suitable for most use cases.
 - Functions can also use the [shared cache](cache.md) via `CACHE_URL`
 - The `CACHE_URL=redis://fnkit-cache:6379` environment variable is set in generated Dockerfiles
 
+## OPC-UA Bridge (`fnkit mqtt opcua`)
+
+FnKit includes a built-in OPC-UA → MQTT bridge that connects to OPC-UA servers, reads tags, and publishes data to MQTT topics. Written in Go, it compiles to a single static binary — run it as a Docker container on a server or as a standalone `.exe` on edge devices.
+
+```
+OPC-UA Server (opc.tcp://...)
+    │
+    │  Read (poll) / Subscribe (real-time)
+    │
+    ▼
+┌──────────────────────────────────────┐
+│  opcua-bridge (Go binary)            │
+│                                      │
+│  Tag Groups:                         │
+│  ├── machine-data (subscribe)        │
+│  │   → legacy/mill8                  │
+│  ├── condition-monitoring (poll 60s) │
+│  │   → condition_legacy/mill8        │
+│  └── motor-torque-power (poll 10s)   │
+│      → motor_legacy/mill8            │
+│                                      │
+│  Status → connection/mill8           │
+└──────────────────────────────────────┘
+    │
+    │  MQTT Publish (JSON)
+    │
+    ▼
+MQTT Broker → uns-framework → fnkit-cache → uns-log
+```
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `fnkit mqtt opcua init [name]` | Scaffold OPC-UA bridge project (default: `opcua-bridge/`) |
+| `fnkit mqtt opcua start [name]` | Build & start bridge container |
+| `fnkit mqtt opcua stop [name]` | Stop bridge container |
+| `fnkit mqtt opcua build [name]` | Cross-compile standalone binaries to `dist/` |
+
+### Quick Start
+
+```bash
+# Create the bridge project
+fnkit mqtt opcua init
+cd opcua-bridge
+
+# Edit tag configuration
+vi tags.yaml
+
+# Option A: Run as Docker container
+cp .env.example .env
+docker compose up -d
+
+# Option B: Build standalone binaries for edge deployment
+fnkit mqtt opcua build
+# → dist/opcua-bridge-windows-amd64.exe
+# → dist/opcua-bridge-linux-amd64
+# → dist/opcua-bridge-linux-arm64
+# → dist/opcua-bridge-darwin-arm64
+```
+
+### Tag Configuration (`tags.yaml`)
+
+Tags are organised into groups, each with its own MQTT topic and read mode:
+
+```yaml
+opcua:
+  endpoint: "opc.tcp://192.168.1.100:4840/"
+  security_policy: "Basic256Sha256"     # None | Basic256Sha256 | Basic256
+  security_mode: "SignAndEncrypt"        # None | Sign | SignAndEncrypt
+  username: ""
+  password: ""
+  insecure: false
+
+mqtt:
+  broker: "mqtt://localhost:1883"
+  client_id: "my-bridge"
+  qos: 1
+
+status_topic: "connection/my-bridge"
+
+groups:
+  - name: "machine-data"
+    topic: "legacy/mill8"
+    mode: "subscribe"                   # Real-time OPC-UA subscription
+    interval: 1000
+    tags:
+      - name: "Spindle Speed"
+        node_id: "ns=2;s=/Channel/Spindle/cmdSpeed"
+      - name: "Feed Rate"
+        node_id: "ns=2;s=/Channel/State/cmdFeedRateIpo"
+
+  - name: "condition-monitoring"
+    topic: "condition_legacy/mill8"
+    mode: "poll"                        # Read on interval
+    interval: 60000                     # 60 seconds
+    tags:
+      - name: "X Motor Temp"
+        node_id: "ns=2;s=/DriveVsa/Drive/R0035[u3]"
+```
+
+### Tag Group Modes
+
+| Mode | Description |
+|---|---|
+| `poll` | Read all tags on a fixed interval (e.g. every 10s, 60s). Good for slow-changing data like temperatures. |
+| `subscribe` | OPC-UA subscription — the server pushes changes in real-time. Good for fast-changing data like spindle speed. |
+
+### OPC-UA Security
+
+| Security Policy | Security Mode | Use Case |
+|---|---|---|
+| `None` | `None` | Development / testing |
+| `Basic256Sha256` | `Sign` | Signed messages |
+| `Basic256Sha256` | `SignAndEncrypt` | Full encryption (production) |
+
+For certificate-based auth, place certs in `certs/` and set paths in `tags.yaml`:
+
+```yaml
+opcua:
+  certificate: "/certs/opcua-client.crt"
+  private_key: "/certs/opcua-client.key"
+```
+
+### MQTT Security
+
+Supports plain, TLS, mTLS, and username/password:
+
+```yaml
+mqtt:
+  broker: "mqtts://broker:8883"        # TLS
+  ca: "/certs/mqtt-ca.crt"
+  cert: "/certs/mqtt-client.crt"       # mTLS
+  key: "/certs/mqtt-client.key"
+  insecure: false                       # Set true for self-signed certs
+```
+
+### Environment Variable Overrides
+
+All connection settings in `tags.yaml` can be overridden via environment variables (useful for Docker/CI):
+
+| Variable | Description |
+|---|---|
+| `OPCUA_ENDPOINT` | OPC-UA server endpoint |
+| `OPCUA_SECURITY_POLICY` | None / Basic256Sha256 / Basic256 |
+| `OPCUA_SECURITY_MODE` | None / Sign / SignAndEncrypt |
+| `OPCUA_USERNAME` / `OPCUA_PASSWORD` | OPC-UA authentication |
+| `OPCUA_INSECURE` | Skip OPC-UA cert validation |
+| `MQTT_BROKER` | MQTT broker URL |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | MQTT authentication |
+| `MQTT_INSECURE` | Skip MQTT TLS validation |
+| `STATUS_TOPIC` | Connection status MQTT topic |
+
+### Edge Deployment
+
+The `build` command cross-compiles standalone binaries via Docker:
+
+```bash
+fnkit mqtt opcua build
+
+# Copy to edge machine:
+#   opcua-bridge-windows-amd64.exe
+#   tags.yaml
+#   certs/  (if using TLS)
+#
+# Run on the edge machine:
+./opcua-bridge-windows-amd64.exe
+```
+
+No Docker, no runtime dependencies — just the binary, config file, and optional certs.
+
+### Built With
+
+- [gopcua/opcua](https://github.com/gopcua/opcua) — OPC-UA client library for Go
+- [eclipse/paho.mqtt.golang](https://github.com/eclipse/paho.mqtt.golang) — MQTT client
+- [gopkg.in/yaml.v3](https://gopkg.in/yaml.v3) — YAML configuration
+
 ## UNS Plugin (`fnkit mqtt`)
 
 FnKit includes a built-in plugin for [Unified Namespace (UNS)](https://www.unsframework.com) workflows — a common industrial IoT pattern where all enterprise data flows through a hierarchical MQTT topic structure following ISA-95.

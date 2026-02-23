@@ -335,7 +335,44 @@ fnkit image push --registry ghcr.io --tag myapp:v1
 
 ## MQTT / UNS Plugin
 
-Manage UNS (Unified Namespace) functions for industrial IoT data. See [MQTT docs](mqtt.md) for architecture and detailed usage.
+Manage UNS (Unified Namespace) functions and OPC-UA bridges for industrial IoT data. See [MQTT docs](mqtt.md) for architecture and detailed usage.
+
+### `fnkit mqtt opcua init [name]`
+
+Create an OPC-UA → MQTT bridge project. A Go application that reads OPC-UA tags and publishes to MQTT topics. Runs as Docker container or standalone `.exe`.
+
+```bash
+fnkit mqtt opcua init                   # Creates opcua-bridge/
+fnkit mqtt opcua init mill8-bridge      # Creates mill8-bridge/
+```
+
+### `fnkit mqtt opcua start [name]`
+
+Build and start the OPC-UA bridge container.
+
+```bash
+fnkit mqtt opcua start
+```
+
+### `fnkit mqtt opcua stop [name]`
+
+Stop the OPC-UA bridge container.
+
+```bash
+fnkit mqtt opcua stop
+```
+
+### `fnkit mqtt opcua build [name]`
+
+Cross-compile standalone binaries for all platforms. Builds via Docker and extracts binaries to `dist/`.
+
+```bash
+fnkit mqtt opcua build
+# → dist/opcua-bridge-linux-amd64
+# → dist/opcua-bridge-linux-arm64
+# → dist/opcua-bridge-windows-amd64.exe
+# → dist/opcua-bridge-darwin-arm64
+```
 
 ### `fnkit mqtt uns init [name]`
 

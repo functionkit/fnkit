@@ -408,9 +408,52 @@ Each function is an independent git repo. Push to main deploys automatically. Av
 
 ## MQTT / UNS Plugin
 
-FnKit includes a plugin system (`src/plugins/`) with a built-in MQTT/UNS plugin for industrial IoT workflows using the [Unified Namespace (UNS) Framework](https://www.unsframework.com).
+FnKit includes a plugin system (`src/plugins/`) with a built-in MQTT/UNS plugin for industrial IoT workflows using the [Unified Namespace (UNS) Framework](https://www.unsframework.com), plus an OPC-UA → MQTT bridge for connecting to OPC-UA servers.
 
-### Plugin Commands
+### OPC-UA Bridge Commands
+
+`fnkit mqtt opcua init [name]` — Create OPC-UA → MQTT bridge (Go application). Reads OPC-UA tags and publishes to MQTT. Supports poll mode (interval-based reads) and subscribe mode (real-time OPC-UA subscriptions). Configurable via `tags.yaml` with tag groups, each with its own MQTT topic and read mode.
+
+`fnkit mqtt opcua start [name]` — Build and start the bridge container.
+
+`fnkit mqtt opcua stop [name]` — Stop the bridge container.
+
+`fnkit mqtt opcua build [name]` — Cross-compile standalone binaries for all platforms (Linux amd64/arm64, Windows .exe, macOS arm64). Builds via Docker multi-stage and extracts binaries to `dist/`. No runtime dependencies — single static binary for edge deployment.
+
+OPC-UA security: None, Basic256Sha256, Basic256, Basic128Rsa15. Security modes: None, Sign, SignAndEncrypt. Supports certificate-based auth and username/password. MQTT security: plain (mqtt://), TLS (mqtts://), mTLS, username/password, insecure mode.
+
+Tag configuration in `tags.yaml`:
+```yaml
+opcua:
+  endpoint: "opc.tcp://192.168.1.100:4840/"
+  security_policy: "Basic256Sha256"
+  security_mode: "SignAndEncrypt"
+mqtt:
+  broker: "mqtt://localhost:1883"
+  client_id: "my-bridge"
+status_topic: "connection/my-bridge"
+groups:
+  - name: "machine-data"
+    topic: "legacy/mill8"
+    mode: "subscribe"
+    interval: 1000
+    tags:
+      - name: "Spindle Speed"
+        node_id: "ns=2;s=/Channel/Spindle/cmdSpeed"
+  - name: "condition-monitoring"
+    topic: "condition_legacy/mill8"
+    mode: "poll"
+    interval: 60000
+    tags:
+      - name: "X Motor Temp"
+        node_id: "ns=2;s=/DriveVsa/Drive/R0035[u3]"
+```
+
+Environment variable overrides: OPCUA_ENDPOINT, OPCUA_SECURITY_POLICY, OPCUA_SECURITY_MODE, OPCUA_USERNAME, OPCUA_PASSWORD, OPCUA_CERTIFICATE, OPCUA_PRIVATE_KEY, OPCUA_INSECURE, MQTT_BROKER, MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD, MQTT_CA, MQTT_CERT, MQTT_KEY, MQTT_INSECURE, STATUS_TOPIC, CONFIG_FILE.
+
+Built with gopcua/opcua (OPC-UA client), eclipse/paho.mqtt.golang (MQTT client), gopkg.in/yaml.v3 (config).
+
+### UNS Plugin Commands
 
 `fnkit mqtt uns init [name]` — Create UNS topic monitor (Go MQTT function). Subscribes to `v1.0/#` and caches all messages to Valkey.
 
@@ -484,7 +527,8 @@ fnkit/
 │   │       ├── index.ts      # Plugin definition & command routing
 │   │       ├── uns.ts        # UNS topic monitor (scaffold + start/stop)
 │   │       ├── cache.ts      # UNS cache reader (scaffold + start/stop)
-│   │       └── log.ts        # UNS PostgreSQL logger (scaffold + start/stop)
+│   │       ├── log.ts        # UNS PostgreSQL logger (scaffold + start/stop)
+│   │       └── opcua.ts      # OPC-UA → MQTT bridge (scaffold + start/stop/build)
 │   ├── runtimes/
 │   │   ├── base.ts           # Runtime interface
 │   │   └── *.ts              # Runtime definitions (12 runtimes)

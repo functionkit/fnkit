@@ -1,9 +1,3 @@
----
-layout: default
-title: MQTT Functions
-nav_order: 10
----
-
 # MQTT Functions
 
 FnKit supports event-driven functions that subscribe to MQTT topics instead of listening on HTTP. Each function connects to an MQTT broker, subscribes to a topic, and processes messages as they arrive.
@@ -221,14 +215,291 @@ Default is QoS 1 (at least once), which is suitable for most use cases.
 - Functions can also use the [shared cache](cache.md) via `CACHE_URL`
 - The `CACHE_URL=redis://fnkit-cache:6379` environment variable is set in generated Dockerfiles
 
-## UNS Plugin
+## OPC-UA Bridge (`fnkit mqtt opcua`)
 
-FnKit includes a built-in plugin for [Unified Namespace (UNS)](https://www.unsframework.com) workflows — industrial IoT data flowing through hierarchical MQTT topics following ISA-95.
+FnKit includes a built-in OPC-UA → MQTT bridge that connects to OPC-UA servers, reads tags, and publishes data to MQTT topics. Written in Go, it compiles to a single static binary — run it as a Docker container on a server or as a standalone `.exe` on edge devices.
 
-The `fnkit mqtt` commands scaffold and manage three pre-built UNS functions: a topic monitor, a cache reader, and a PostgreSQL logger.
+```
+OPC-UA Server (opc.tcp://...)
+    │
+    │  Read (poll) / Subscribe (real-time)
+    │
+    ▼
+┌──────────────────────────────────────┐
+│  opcua-bridge (Go binary)            │
+│                                      │
+│  Tag Groups:                         │
+│  ├── machine-data (subscribe)        │
+│  │   → legacy/mill8                  │
+│  ├── condition-monitoring (poll 60s) │
+│  │   → condition_legacy/mill8        │
+│  └── motor-torque-power (poll 10s)   │
+│      → motor_legacy/mill8            │
+│                                      │
+│  Status → connection/mill8           │
+└──────────────────────────────────────┘
+    │
+    │  MQTT Publish (JSON)
+    │
+    ▼
+MQTT Broker → uns-framework → fnkit-cache → uns-log
+```
 
-→ **[Full UNS Plugin documentation](uns-plugin.md)**
+### Commands
+
+| Command | Description |
+|---|---|
+| `fnkit mqtt opcua init [name]` | Scaffold OPC-UA bridge project (default: `opcua-bridge/`) |
+| `fnkit mqtt opcua start [name]` | Build & start bridge container |
+| `fnkit mqtt opcua stop [name]` | Stop bridge container |
+| `fnkit mqtt opcua build [name]` | Cross-compile standalone binaries to `dist/` |
+
+### Quick Start
+
+```bash
+# Create the bridge project
+fnkit mqtt opcua init
+cd opcua-bridge
+
+# Edit tag configuration
+vi tags.yaml
+
+# Option A: Run as Docker container
+cp .env.example .env
+docker compose up -d
+
+# Option B: Build standalone binaries for edge deployment
+fnkit mqtt opcua build
+# → dist/opcua-bridge-windows-amd64.exe
+# → dist/opcua-bridge-linux-amd64
+# → dist/opcua-bridge-linux-arm64
+# → dist/opcua-bridge-darwin-arm64
+```
+
+### Tag Configuration (`tags.yaml`)
+
+Tags are organised into groups, each with its own MQTT topic and read mode:
+
+```yaml
+opcua:
+  endpoint: "opc.tcp://192.168.1.100:4840/"
+  security_policy: "Basic256Sha256"     # None | Basic256Sha256 | Basic256
+  security_mode: "SignAndEncrypt"        # None | Sign | SignAndEncrypt
+  username: ""
+  password: ""
+  insecure: false
+
+mqtt:
+  broker: "mqtt://localhost:1883"
+  client_id: "my-bridge"
+  qos: 1
+
+status_topic: "connection/my-bridge"
+
+groups:
+  - name: "machine-data"
+    topic: "legacy/mill8"
+    mode: "subscribe"                   # Real-time OPC-UA subscription
+    interval: 1000
+    tags:
+      - name: "Spindle Speed"
+        node_id: "ns=2;s=/Channel/Spindle/cmdSpeed"
+      - name: "Feed Rate"
+        node_id: "ns=2;s=/Channel/State/cmdFeedRateIpo"
+
+  - name: "condition-monitoring"
+    topic: "condition_legacy/mill8"
+    mode: "poll"                        # Read on interval
+    interval: 60000                     # 60 seconds
+    tags:
+      - name: "X Motor Temp"
+        node_id: "ns=2;s=/DriveVsa/Drive/R0035[u3]"
+```
+
+### Tag Group Modes
+
+| Mode | Description |
+|---|---|
+| `poll` | Read all tags on a fixed interval (e.g. every 10s, 60s). Good for slow-changing data like temperatures. |
+| `subscribe` | OPC-UA subscription — the server pushes changes in real-time. Good for fast-changing data like spindle speed. |
+
+### OPC-UA Security
+
+| Security Policy | Security Mode | Use Case |
+|---|---|---|
+| `None` | `None` | Development / testing |
+| `Basic256Sha256` | `Sign` | Signed messages |
+| `Basic256Sha256` | `SignAndEncrypt` | Full encryption (production) |
+
+For certificate-based auth, place certs in `certs/` and set paths in `tags.yaml`:
+
+```yaml
+opcua:
+  certificate: "/certs/opcua-client.crt"
+  private_key: "/certs/opcua-client.key"
+```
+
+### MQTT Security
+
+Supports plain, TLS, mTLS, and username/password:
+
+```yaml
+mqtt:
+  broker: "mqtts://broker:8883"        # TLS
+  ca: "/certs/mqtt-ca.crt"
+  cert: "/certs/mqtt-client.crt"       # mTLS
+  key: "/certs/mqtt-client.key"
+  insecure: false                       # Set true for self-signed certs
+```
+
+### Environment Variable Overrides
+
+All connection settings in `tags.yaml` can be overridden via environment variables (useful for Docker/CI):
+
+| Variable | Description |
+|---|---|
+| `OPCUA_ENDPOINT` | OPC-UA server endpoint |
+| `OPCUA_SECURITY_POLICY` | None / Basic256Sha256 / Basic256 |
+| `OPCUA_SECURITY_MODE` | None / Sign / SignAndEncrypt |
+| `OPCUA_USERNAME` / `OPCUA_PASSWORD` | OPC-UA authentication |
+| `OPCUA_INSECURE` | Skip OPC-UA cert validation |
+| `MQTT_BROKER` | MQTT broker URL |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | MQTT authentication |
+| `MQTT_INSECURE` | Skip MQTT TLS validation |
+| `STATUS_TOPIC` | Connection status MQTT topic |
+
+### Edge Deployment
+
+The `build` command cross-compiles standalone binaries via Docker:
+
+```bash
+fnkit mqtt opcua build
+
+# Copy to edge machine:
+#   opcua-bridge-windows-amd64.exe
+#   tags.yaml
+#   certs/  (if using TLS)
+#
+# Run on the edge machine:
+./opcua-bridge-windows-amd64.exe
+```
+
+No Docker, no runtime dependencies — just the binary, config file, and optional certs.
+
+### Built With
+
+- [gopcua/opcua](https://github.com/gopcua/opcua) — OPC-UA client library for Go
+- [eclipse/paho.mqtt.golang](https://github.com/eclipse/paho.mqtt.golang) — MQTT client
+- [gopkg.in/yaml.v3](https://gopkg.in/yaml.v3) — YAML configuration
+
+## UNS Plugin (`fnkit mqtt`)
+
+FnKit includes a built-in plugin for [Unified Namespace (UNS)](https://www.unsframework.com) workflows — a common industrial IoT pattern where all enterprise data flows through a hierarchical MQTT topic structure following ISA-95.
+
+The plugin provides three pre-built functions that work together:
+
+```
+MQTT Broker (v1.0/#)
+    │
+    ▼
+uns-framework (Go MQTT function)
+    │  Subscribes to v1.0/#
+    │  Caches every message to Valkey
+    ▼
+fnkit-cache (Valkey)
+    │
+    ├── uns-cache (Node.js HTTP function)
+    │   Reads cached topics, returns JSON with change detection
+    │
+    └── uns-log (Go HTTP function)
+        Logs changed values to PostgreSQL
+```
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `fnkit mqtt uns init [name]` | Scaffold UNS topic monitor (Go MQTT → Valkey) |
+| `fnkit mqtt uns start [name]` | Build & start monitor container |
+| `fnkit mqtt uns stop [name]` | Stop monitor container |
+| `fnkit mqtt cache init [name]` | Scaffold UNS cache reader (Node.js HTTP → JSON) |
+| `fnkit mqtt cache start [name]` | Build & start cache reader |
+| `fnkit mqtt cache stop [name]` | Stop cache reader |
+| `fnkit mqtt log init [name]` | Scaffold PostgreSQL logger (Go HTTP → Postgres) |
+| `fnkit mqtt log start [name]` | Build & start logger |
+| `fnkit mqtt log stop [name]` | Stop logger |
+| `fnkit mqtt status` | Show status of all UNS components |
+
+### Quick Start
+
+```bash
+# 1. Start the shared cache
+fnkit cache start
+
+# 2. Create and configure the UNS monitor
+fnkit mqtt uns init
+cd uns-framework
+cp .env.example .env
+# Edit .env: set MQTT_BROKER, auth, TLS certs as needed
+docker compose up -d
+
+# 3. Create the cache reader (HTTP API for cached data)
+cd ..
+fnkit mqtt cache init
+cd uns-cache
+cp .env.example .env
+docker compose up -d
+
+# 4. (Optional) Create the PostgreSQL logger
+cd ..
+fnkit mqtt log init
+cd uns-log
+cp .env.example .env
+# Set config in Valkey:
+docker exec fnkit-cache valkey-cli SET fnkit:config:uns-log \
+  '{"table":"uns_log","topics":["v1.0/enterprise/site/area/line/temperature"]}'
+docker compose up -d
+```
+
+### TLS / mTLS Support
+
+The UNS monitor (`fnkit mqtt uns init`) includes full TLS/mTLS support:
+
+1. Place certificates in the `certs/` directory
+2. Configure paths in `.env`:
+
+```env
+# TLS (server verification)
+MQTT_BROKER=mqtts://broker:8883
+MQTT_CA=/certs/ca.crt
+
+# mTLS (mutual authentication)
+MQTT_CERT=/certs/client.crt
+MQTT_KEY=/certs/client.key
+
+# Self-signed certificates
+MQTT_REJECT_UNAUTHORIZED=false
+```
+
+The `docker-compose.yml` mounts `./certs:/certs:ro` automatically.
+
+### Cache Key Layout
+
+The UNS monitor writes to Valkey with this key structure:
+
+| Key Pattern | Type | Description |
+|---|---|---|
+| `uns:topics` | SET | All discovered topic paths |
+| `uns:data:<topic>` | STRING | Latest payload (raw JSON) |
+| `uns:prev:<topic>` | STRING | Previous payload (raw JSON) |
+| `uns:meta:<topic>` | STRING | `{"last_updated", "count", "first_seen"}` |
+
+Query from CLI:
+```bash
+docker exec fnkit-cache valkey-cli SMEMBERS uns:topics
+docker exec fnkit-cache valkey-cli GET "uns:data:v1.0/enterprise/site/area/line/temperature"
+```
 
 ---
 
-← [Back to README](../README.md) · [UNS Plugin →](uns-plugin.md) · [Runtimes →](runtimes.md) · [Cache →](cache.md)
+← [Back to README](../README.md) · [Runtimes →](runtimes.md) · [Cache →](cache.md)
