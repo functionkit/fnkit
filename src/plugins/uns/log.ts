@@ -601,7 +601,7 @@ function generateReadme(name: string): string {
 
 A Go HTTP function that reads [UNS Framework](https://www.unsframework.com) topic data from the shared Valkey cache (populated by uns-framework) and logs snapshot rows to PostgreSQL when any value changes.
 
-Scaffolded with \`fnkit mqtt log init\`.
+Scaffolded with \`fnkit uns log init\`.
 
 ## How It Works
 
@@ -781,7 +781,7 @@ export async function unsLogStart(
 
   if (!existsSync(targetDir)) {
     logger.error(`Directory not found: ${dir}`)
-    logger.info('Run "fnkit mqtt log init" first')
+    logger.info('Run "fnkit uns log init" first')
     return false
   }
 

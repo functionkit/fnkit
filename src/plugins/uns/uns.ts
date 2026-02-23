@@ -357,7 +357,7 @@ function generateReadme(name: string): string {
 
 A Go MQTT function that monitors the [UNS Framework](https://www.unsframework.com) namespace and caches all topic data in the shared Valkey cache.
 
-Scaffolded with \`fnkit mqtt uns init\`.
+Scaffolded with \`fnkit uns uns init\`.
 
 ## How It Works
 
@@ -519,7 +519,7 @@ export async function unsStart(
 
   if (!existsSync(targetDir)) {
     logger.error(`Directory not found: ${dir}`)
-    logger.info('Run "fnkit mqtt uns init" first')
+    logger.info('Run "fnkit uns uns init" first')
     return false
   }
 

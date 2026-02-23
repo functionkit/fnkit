@@ -4,11 +4,11 @@ import type { Plugin } from './base'
 export type { Plugin, PluginCommand } from './base'
 
 // Import plugins
-import { mqttPlugin } from './mqtt'
+import { unsPlugin } from './uns'
 
 // All registered plugins
 export const plugins: Record<string, Plugin> = {
-  mqtt: mqttPlugin,
+  uns: unsPlugin,
 }
 
 export function getPlugin(name: string): Plugin | undefined {

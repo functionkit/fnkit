@@ -1,5 +1,5 @@
-// MQTT Plugin — UNS (Unified Namespace) functions for fnkit
-// Provides: fnkit mqtt uns|cache|log|status
+// UNS Plugin — Unified Namespace functions for fnkit
+// Provides: fnkit uns uns|cache|log|status
 
 import { createPlugin } from '../base'
 import logger from '../../utils/logger'
@@ -8,9 +8,9 @@ import { unsCacheInit, unsCacheStart, unsCacheStop, unsCacheStatus } from './cac
 import { unsLogInit, unsLogStart, unsLogStop, unsLogStatus } from './log'
 import { opcuaInit, opcuaStart, opcuaStop, opcuaBuild, opcuaStatus } from './opcua'
 
-export const mqttPlugin = createPlugin({
-  name: 'mqtt',
-  displayName: 'MQTT / UNS',
+export const unsPlugin = createPlugin({
+  name: 'uns',
+  displayName: 'UNS',
   description:
     'Unified Namespace (UNS) functions — MQTT topic monitor, cache reader, and PostgreSQL logger',
   commands: [
@@ -28,7 +28,7 @@ export const mqttPlugin = createPlugin({
           case 'stop':
             return unsStop(args, options)
           default:
-            logger.error(`Unknown uns command: ${subcmd}`)
+            logger.error(`Unknown uns subcommand: ${subcmd}`)
             logger.info('Available: init, start, stop')
             return false
         }
@@ -48,7 +48,7 @@ export const mqttPlugin = createPlugin({
           case 'stop':
             return unsCacheStop(args, options)
           default:
-            logger.error(`Unknown cache command: ${subcmd}`)
+            logger.error(`Unknown cache subcommand: ${subcmd}`)
             logger.info('Available: init, start, stop')
             return false
         }
@@ -68,7 +68,7 @@ export const mqttPlugin = createPlugin({
           case 'stop':
             return unsLogStop(args, options)
           default:
-            logger.error(`Unknown log command: ${subcmd}`)
+            logger.error(`Unknown log subcommand: ${subcmd}`)
             logger.info('Available: init, start, stop')
             return false
         }
@@ -90,7 +90,7 @@ export const mqttPlugin = createPlugin({
           case 'build':
             return opcuaBuild(args, options)
           default:
-            logger.error(`Unknown opcua command: ${subcmd}`)
+            logger.error(`Unknown opcua subcommand: ${subcmd}`)
             logger.info('Available: init, start, stop, build')
             return false
         }
@@ -101,7 +101,7 @@ export const mqttPlugin = createPlugin({
       description: 'Show status of all MQTT/UNS components',
       subcommands: [],
       handler: async () => {
-        logger.title('MQTT / UNS Status')
+        logger.title('UNS Status')
         await unsStatus()
         await unsCacheStatus()
         await unsLogStatus()

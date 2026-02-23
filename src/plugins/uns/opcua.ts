@@ -847,7 +847,7 @@ networks:
 #   4. docker compose up -d
 #
 # Build standalone binaries:
-#   fnkit mqtt opcua build
+#   fnkit uns opcua build
 #   → dist/opcua-bridge-windows-amd64.exe  (edge deployment)
 #   → dist/opcua-bridge-linux-amd64        (Linux server)
 `
@@ -1138,7 +1138,7 @@ function generateReadme(name: string): string {
 
 A Go application that connects to an OPC-UA server, reads tags, and publishes data to MQTT topics. Runs as a Docker container or a standalone binary (.exe) on edge devices.
 
-Scaffolded with \`fnkit mqtt opcua init\`.
+Scaffolded with \`fnkit uns opcua init\`.
 
 ## Architecture
 
@@ -1189,7 +1189,7 @@ docker logs -f $\{name}
 
 \`\`\`bash
 # Build binaries for all platforms
-fnkit mqtt opcua build
+fnkit uns opcua build
 
 # Deploy to edge machine
 # Copy these files to the target:
@@ -1338,7 +1338,7 @@ export async function opcuaInit(
   logger.dim('  docker compose up -d')
   logger.newline()
   logger.info('To build standalone binaries:')
-  logger.dim(`  fnkit mqtt opcua build ${name}`)
+  logger.dim(`  fnkit uns opcua build ${name}`)
   logger.newline()
 
   return true
@@ -1355,7 +1355,7 @@ export async function opcuaStart(
 
   if (!existsSync(targetDir)) {
     logger.error(`Directory not found: ${dir}`)
-    logger.info('Run "fnkit mqtt opcua init" first')
+    logger.info('Run "fnkit uns opcua init" first')
     return false
   }
 
@@ -1416,7 +1416,7 @@ export async function opcuaBuild(
 
   if (!existsSync(targetDir)) {
     logger.error(`Directory not found: ${dir}`)
-    logger.info('Run "fnkit mqtt opcua init" first')
+    logger.info('Run "fnkit uns opcua init" first')
     return false
   }
 

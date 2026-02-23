@@ -53,7 +53,7 @@ Commands:
   deploy ...                         Manage CI/CD deploy pipeline
   image ...                          Build & push Docker images
 
-  mqtt ...                           MQTT / UNS plugin commands
+  uns ...                            UNS plugin commands
 
   doctor [runtime]                   Check runtime dependencies
   install                            Install fnkit globally
@@ -205,16 +205,16 @@ Examples:
 `)
 }
 
-function showMqttHelp() {
+function showUnsHelp() {
   console.log(`
-fnkit mqtt — MQTT / UNS Plugin
+fnkit uns — UNS Plugin
 
 Unified Namespace (UNS) functions for industrial IoT data.
 Monitors MQTT topics, caches data in Valkey, and logs changes to PostgreSQL.
 OPC-UA bridge for reading tags from OPC-UA servers and publishing to MQTT.
 
 Usage:
-  fnkit mqtt <command> <subcommand> [name]
+  fnkit uns <command> <subcommand> [name]
 
 Commands:
   opcua <init|start|stop|build> [name] OPC-UA → MQTT bridge (Go → standalone .exe)
@@ -232,33 +232,33 @@ Architecture:
                                                 uns-log (PostgreSQL logger)
 
 Examples:
-  fnkit mqtt opcua init                 Create OPC-UA → MQTT bridge
-  fnkit mqtt opcua start                Build & start bridge (Docker)
-  fnkit mqtt opcua build                Cross-compile standalone binaries (.exe)
-  fnkit mqtt uns init                   Create UNS topic monitor
-  fnkit mqtt uns start                  Build & start monitor
-  fnkit mqtt cache init                 Create UNS cache reader
-  fnkit mqtt log init                   Create PostgreSQL logger
-  fnkit mqtt status                     Check all components
+  fnkit uns opcua init                  Create OPC-UA → MQTT bridge
+  fnkit uns opcua start                 Build & start bridge (Docker)
+  fnkit uns opcua build                 Cross-compile standalone binaries (.exe)
+  fnkit uns uns init                    Create UNS topic monitor
+  fnkit uns uns start                   Build & start monitor
+  fnkit uns cache init                  Create UNS cache reader
+  fnkit uns log init                    Create PostgreSQL logger
+  fnkit uns status                      Check all components
 
 Quick Start (OPC-UA):
-  fnkit mqtt opcua init && cd opcua-bridge
+  fnkit uns opcua init && cd opcua-bridge
   vi tags.yaml                          # Configure OPC-UA tags
   docker compose up -d                  # Start bridge
 `)
 }
 
-function showMqttCommandHelp(command: string) {
+function showUnsCommandHelp(command: string) {
   switch (command) {
     case 'uns':
       console.log(`
-fnkit mqtt uns — UNS Topic Monitor
+fnkit uns uns — UNS Topic Monitor
 
 A Go MQTT function that subscribes to v1.0/# and caches all topic data
 in the shared Valkey cache. Uses the FnKit Function Framework for Go.
 
 Usage:
-  fnkit mqtt uns <command> [name]
+  fnkit uns uns <command> [name]
 
 Commands:
   init [name]           Create UNS monitor project (default: uns-framework)
@@ -272,21 +272,21 @@ The monitor writes to Valkey cache:
   uns:meta:<topic>      → metadata (last_updated, count, first_seen)
 
 Examples:
-  fnkit mqtt uns init                   Create with default name
-  fnkit mqtt uns init my-monitor        Create with custom name
-  fnkit mqtt uns start                  Build & start
-  fnkit mqtt uns stop                   Stop container
+  fnkit uns uns init                    Create with default name
+  fnkit uns uns init my-monitor         Create with custom name
+  fnkit uns uns start                   Build & start
+  fnkit uns uns stop                    Stop container
 `)
       break
     case 'cache':
       console.log(`
-fnkit mqtt cache — UNS Cache Reader
+fnkit uns cache — UNS Cache Reader
 
 A Node.js HTTP function that reads UNS topic data from the shared Valkey
 cache (populated by uns-framework) and returns JSON with change detection.
 
 Usage:
-  fnkit mqtt cache <command> [name]
+  fnkit uns cache <command> [name]
 
 Commands:
   init [name]           Create cache reader project (default: uns-cache)
@@ -298,14 +298,14 @@ Accessible via the fnkit gateway:
   curl -d '{"topics":["v1.0/..."]}' http://localhost:8080/uns-cache  # Specific
 
 Examples:
-  fnkit mqtt cache init                 Create with default name
-  fnkit mqtt cache start                Build & start
-  fnkit mqtt cache stop                 Stop container
+  fnkit uns cache init                  Create with default name
+  fnkit uns cache start                 Build & start
+  fnkit uns cache stop                  Stop container
 `)
       break
     case 'log':
       console.log(`
-fnkit mqtt log — UNS PostgreSQL Logger
+fnkit uns log — UNS PostgreSQL Logger
 
 A Go HTTP function that reads UNS topic data from the shared Valkey cache
 and logs snapshot rows to PostgreSQL when any value changes.
@@ -314,7 +314,7 @@ Config is stored in Valkey (not .env):
   docker exec fnkit-cache valkey-cli SET fnkit:config:uns-log '{"table":"uns_log","topics":[...]}'
 
 Usage:
-  fnkit mqtt log <command> [name]
+  fnkit uns log <command> [name]
 
 Commands:
   init [name]           Create logger project (default: uns-log)
@@ -322,22 +322,22 @@ Commands:
   stop [name]           Stop the logger container
 
 Examples:
-  fnkit mqtt log init                   Create with default name
-  fnkit mqtt log init uns-log-line1     Create named instance
-  fnkit mqtt log start                  Build & start
-  fnkit mqtt log stop                   Stop container
+  fnkit uns log init                    Create with default name
+  fnkit uns log init uns-log-line1      Create named instance
+  fnkit uns log start                   Build & start
+  fnkit uns log stop                    Stop container
 `)
       break
     case 'opcua':
       console.log(`
-fnkit mqtt opcua — OPC-UA → MQTT Bridge
+fnkit uns opcua — OPC-UA → MQTT Bridge
 
 A Go application that connects to an OPC-UA server, reads tags (poll or
 subscribe), and publishes data to MQTT topics. Runs as a Docker container
 or a standalone binary (.exe) on edge devices.
 
 Usage:
-  fnkit mqtt opcua <command> [name]
+  fnkit uns opcua <command> [name]
 
 Commands:
   init [name]           Create OPC-UA bridge project (default: opcua-bridge)
@@ -353,15 +353,15 @@ Security: None, Basic256Sha256, Sign, SignAndEncrypt, certs, insecure mode
 MQTT: plain, TLS, mTLS, username/password, insecure mode
 
 Examples:
-  fnkit mqtt opcua init                 Create with default name
-  fnkit mqtt opcua init mill8-bridge    Create with custom name
-  fnkit mqtt opcua start                Build & start (Docker)
-  fnkit mqtt opcua build                Cross-compile .exe for edge
-  fnkit mqtt opcua stop                 Stop container
+  fnkit uns opcua init                  Create with default name
+  fnkit uns opcua init mill8-bridge     Create with custom name
+  fnkit uns opcua start                 Build & start (Docker)
+  fnkit uns opcua build                 Cross-compile .exe for edge
+  fnkit uns opcua stop                  Stop container
 `)
       break
     default:
-      console.log(`Run "fnkit mqtt" for available commands.`)
+      console.log(`Run "fnkit uns" for available commands.`)
   }
 }
 
@@ -687,17 +687,17 @@ Examples:
       // Plugin system: fnkit <plugin> <command> <subcommand> [args]
       // ─────────────────────────────────────────────────────────────────
 
-      case 'mqtt': {
-        const plugin = getPlugin('mqtt')
+      case 'uns': {
+        const plugin = getPlugin('uns')
         if (!plugin) {
-          logger.error('MQTT plugin not found')
+          logger.error('UNS plugin not found')
           process.exit(1)
           break
         }
 
         const pluginCmd = positionalArgs[0]
         if (!pluginCmd || options.help || options.h) {
-          showMqttHelp()
+          showUnsHelp()
           process.exit(0)
           break
         }
@@ -705,7 +705,7 @@ Examples:
         // Find the matching plugin command
         const cmd = plugin.commands.find((c) => c.name === pluginCmd)
         if (!cmd) {
-          logger.error(`Unknown mqtt command: ${pluginCmd}`)
+          logger.error(`Unknown uns command: ${pluginCmd}`)
           logger.info(
             `Available: ${plugin.commands.map((c) => c.name).join(', ')}`,
           )
@@ -719,7 +719,7 @@ Examples:
 
         // If no subcommand and the command has subcommands, show help
         if (!subcmd && cmd.subcommands.length > 0) {
-          showMqttCommandHelp(cmd.name)
+          showUnsCommandHelp(cmd.name)
           process.exit(0)
           break
         }

@@ -8,7 +8,7 @@ nav_order: 11
 
 FnKit includes a built-in plugin for [Unified Namespace (UNS)](https://www.unsframework.com) workflows — a common industrial IoT pattern where all enterprise data flows through a hierarchical MQTT topic structure following ISA-95.
 
-The `fnkit mqtt` commands scaffold and manage three pre-built functions that work together to monitor, cache, and log UNS data.
+The `fnkit uns` commands scaffold and manage three pre-built functions that work together to monitor, cache, and log UNS data.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ The three components:
 fnkit cache start
 
 # 2. Create and configure the UNS monitor
-fnkit mqtt uns init
+fnkit uns uns init
 cd uns-framework
 cp .env.example .env
 # Edit .env: set MQTT_BROKER, auth, TLS certs as needed
@@ -57,14 +57,14 @@ docker compose up -d
 
 # 3. Create the cache reader (HTTP API for cached data)
 cd ..
-fnkit mqtt cache init
+fnkit uns cache init
 cd uns-cache
 cp .env.example .env
 docker compose up -d
 
 # 4. (Optional) Create the PostgreSQL logger
 cd ..
-fnkit mqtt log init
+fnkit uns log init
 cd uns-log
 cp .env.example .env
 # Set config in Valkey:
@@ -73,23 +73,23 @@ docker exec fnkit-cache valkey-cli SET fnkit:config:uns-log \
 docker compose up -d
 
 # 5. Check status
-fnkit mqtt status
+fnkit uns status
 ```
 
 ## Commands
 
 | Command | Description |
 |:--------|:------------|
-| `fnkit mqtt uns init [name]` | Scaffold UNS topic monitor (default: `uns-framework/`) |
-| `fnkit mqtt uns start [name]` | Build & start monitor container |
-| `fnkit mqtt uns stop [name]` | Stop monitor container |
-| `fnkit mqtt cache init [name]` | Scaffold UNS cache reader (default: `uns-cache/`) |
-| `fnkit mqtt cache start [name]` | Build & start cache reader |
-| `fnkit mqtt cache stop [name]` | Stop cache reader |
-| `fnkit mqtt log init [name]` | Scaffold PostgreSQL logger (default: `uns-log/`) |
-| `fnkit mqtt log start [name]` | Build & start logger |
-| `fnkit mqtt log stop [name]` | Stop logger |
-| `fnkit mqtt status` | Show status of all UNS components |
+| `fnkit uns uns init [name]` | Scaffold UNS topic monitor (default: `uns-framework/`) |
+| `fnkit uns uns start [name]` | Build & start monitor container |
+| `fnkit uns uns stop [name]` | Stop monitor container |
+| `fnkit uns cache init [name]` | Scaffold UNS cache reader (default: `uns-cache/`) |
+| `fnkit uns cache start [name]` | Build & start cache reader |
+| `fnkit uns cache stop [name]` | Stop cache reader |
+| `fnkit uns log init [name]` | Scaffold PostgreSQL logger (default: `uns-log/`) |
+| `fnkit uns log start [name]` | Build & start logger |
+| `fnkit uns log stop [name]` | Stop logger |
+| `fnkit uns status` | Show status of all UNS components |
 
 ## UNS Topic Monitor (`uns-framework`)
 

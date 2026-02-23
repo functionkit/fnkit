@@ -412,13 +412,13 @@ FnKit includes a plugin system (`src/plugins/`) with a built-in MQTT/UNS plugin 
 
 ### OPC-UA Bridge Commands
 
-`fnkit mqtt opcua init [name]` — Create OPC-UA → MQTT bridge (Go application). Reads OPC-UA tags and publishes to MQTT. Supports poll mode (interval-based reads) and subscribe mode (real-time OPC-UA subscriptions). Configurable via `tags.yaml` with tag groups, each with its own MQTT topic and read mode.
+`fnkit uns opcua init [name]` — Create OPC-UA → MQTT bridge (Go application). Reads OPC-UA tags and publishes to MQTT. Supports poll mode (interval-based reads) and subscribe mode (real-time OPC-UA subscriptions). Configurable via `tags.yaml` with tag groups, each with its own MQTT topic and read mode.
 
-`fnkit mqtt opcua start [name]` — Build and start the bridge container.
+`fnkit uns opcua start [name]` — Build and start the bridge container.
 
-`fnkit mqtt opcua stop [name]` — Stop the bridge container.
+`fnkit uns opcua stop [name]` — Stop the bridge container.
 
-`fnkit mqtt opcua build [name]` — Cross-compile standalone binaries for all platforms (Linux amd64/arm64, Windows .exe, macOS arm64). Builds via Docker multi-stage and extracts binaries to `dist/`. No runtime dependencies — single static binary for edge deployment.
+`fnkit uns opcua build [name]` — Cross-compile standalone binaries for all platforms (Linux amd64/arm64, Windows .exe, macOS arm64). Builds via Docker multi-stage and extracts binaries to `dist/`. No runtime dependencies — single static binary for edge deployment.
 
 OPC-UA security: None, Basic256Sha256, Basic256, Basic128Rsa15. Security modes: None, Sign, SignAndEncrypt. Supports certificate-based auth and username/password. MQTT security: plain (mqtt://), TLS (mqtts://), mTLS, username/password, insecure mode.
 
@@ -455,25 +455,25 @@ Built with gopcua/opcua (OPC-UA client), eclipse/paho.mqtt.golang (MQTT client),
 
 ### UNS Plugin Commands
 
-`fnkit mqtt uns init [name]` — Create UNS topic monitor (Go MQTT function). Subscribes to `v1.0/#` and caches all messages to Valkey.
+`fnkit uns uns init [name]` — Create UNS topic monitor (Go MQTT function). Subscribes to `v1.0/#` and caches all messages to Valkey.
 
-`fnkit mqtt uns start [name]` — Build and start the monitor container.
+`fnkit uns uns start [name]` — Build and start the monitor container.
 
-`fnkit mqtt uns stop [name]` — Stop the monitor container.
+`fnkit uns uns stop [name]` — Stop the monitor container.
 
-`fnkit mqtt cache init [name]` — Create UNS cache reader (Node.js HTTP function). Reads cached topic data and returns JSON with change detection.
+`fnkit uns cache init [name]` — Create UNS cache reader (Node.js HTTP function). Reads cached topic data and returns JSON with change detection.
 
-`fnkit mqtt cache start [name]` — Build and start the cache reader container.
+`fnkit uns cache start [name]` — Build and start the cache reader container.
 
-`fnkit mqtt cache stop [name]` — Stop the cache reader container.
+`fnkit uns cache stop [name]` — Stop the cache reader container.
 
-`fnkit mqtt log init [name]` — Create UNS PostgreSQL logger (Go HTTP function). Logs cache changes to PostgreSQL. Config stored in Valkey.
+`fnkit uns log init [name]` — Create UNS PostgreSQL logger (Go HTTP function). Logs cache changes to PostgreSQL. Config stored in Valkey.
 
-`fnkit mqtt log start [name]` — Build and start the logger container.
+`fnkit uns log start [name]` — Build and start the logger container.
 
-`fnkit mqtt log stop [name]` — Stop the logger container.
+`fnkit uns log stop [name]` — Stop the logger container.
 
-`fnkit mqtt status` — Show status of all MQTT/UNS components.
+`fnkit uns status` — Show status of all MQTT/UNS components.
 
 ### UNS Architecture
 
@@ -523,7 +523,7 @@ fnkit/
 │   ├── plugins/
 │   │   ├── base.ts           # Plugin interface
 │   │   ├── index.ts          # Plugin registry
-│   │   └── mqtt/             # MQTT / UNS plugin
+│   │   └── uns/             # UNS plugin
 │   │       ├── index.ts      # Plugin definition & command routing
 │   │       ├── uns.ts        # UNS topic monitor (scaffold + start/stop)
 │   │       ├── cache.ts      # UNS cache reader (scaffold + start/stop)

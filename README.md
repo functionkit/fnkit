@@ -83,8 +83,8 @@ git add . && git commit -m "init" && git push
 | `fnkit cache init\|start\|stop`            | Manage shared Valkey cache                  |
 | `fnkit proxy init\|add\|remove\|ls`        | Manage Caddy reverse proxy                  |
 | `fnkit deploy setup\|init\|runner\|status` | Manage CI/CD pipelines                      |
-| `fnkit mqtt opcua init\|start\|stop\|build`| OPC-UA → MQTT bridge                        |
-| `fnkit mqtt uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
+| `fnkit uns opcua init\|start\|stop\|build`| OPC-UA → MQTT bridge                        |
+| `fnkit uns uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
 | `fnkit image build\|push`                  | Build & push Docker images                  |
 | `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
 

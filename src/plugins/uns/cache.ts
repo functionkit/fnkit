@@ -292,7 +292,7 @@ function generateReadme(name: string): string {
 
 A Node.js HTTP function that reads [UNS Framework](https://www.unsframework.com) topic data from the shared Valkey cache (populated by uns-framework) and returns JSON with change detection.
 
-Scaffolded with \`fnkit mqtt cache init\`.
+Scaffolded with \`fnkit uns cache init\`.
 
 ## How It Works
 
@@ -437,7 +437,7 @@ export async function unsCacheStart(
 
   if (!existsSync(targetDir)) {
     logger.error(`Directory not found: ${dir}`)
-    logger.info('Run "fnkit mqtt cache init" first')
+    logger.info('Run "fnkit uns cache init" first')
     return false
   }
 

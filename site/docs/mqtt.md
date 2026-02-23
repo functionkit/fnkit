@@ -215,7 +215,7 @@ Default is QoS 1 (at least once), which is suitable for most use cases.
 - Functions can also use the [shared cache](cache.md) via `CACHE_URL`
 - The `CACHE_URL=redis://fnkit-cache:6379` environment variable is set in generated Dockerfiles
 
-## OPC-UA Bridge (`fnkit mqtt opcua`)
+## OPC-UA Bridge (`fnkit uns opcua`)
 
 FnKit includes a built-in OPC-UA → MQTT bridge that connects to OPC-UA servers, reads tags, and publishes data to MQTT topics. Written in Go, it compiles to a single static binary — run it as a Docker container on a server or as a standalone `.exe` on edge devices.
 
@@ -249,16 +249,16 @@ MQTT Broker → uns-framework → fnkit-cache → uns-log
 
 | Command | Description |
 |---|---|
-| `fnkit mqtt opcua init [name]` | Scaffold OPC-UA bridge project (default: `opcua-bridge/`) |
-| `fnkit mqtt opcua start [name]` | Build & start bridge container |
-| `fnkit mqtt opcua stop [name]` | Stop bridge container |
-| `fnkit mqtt opcua build [name]` | Cross-compile standalone binaries to `dist/` |
+| `fnkit uns opcua init [name]` | Scaffold OPC-UA bridge project (default: `opcua-bridge/`) |
+| `fnkit uns opcua start [name]` | Build & start bridge container |
+| `fnkit uns opcua stop [name]` | Stop bridge container |
+| `fnkit uns opcua build [name]` | Cross-compile standalone binaries to `dist/` |
 
 ### Quick Start
 
 ```bash
 # Create the bridge project
-fnkit mqtt opcua init
+fnkit uns opcua init
 cd opcua-bridge
 
 # Edit tag configuration
@@ -269,7 +269,7 @@ cp .env.example .env
 docker compose up -d
 
 # Option B: Build standalone binaries for edge deployment
-fnkit mqtt opcua build
+fnkit uns opcua build
 # → dist/opcua-bridge-windows-amd64.exe
 # → dist/opcua-bridge-linux-amd64
 # → dist/opcua-bridge-linux-arm64
@@ -373,7 +373,7 @@ All connection settings in `tags.yaml` can be overridden via environment variabl
 The `build` command cross-compiles standalone binaries via Docker:
 
 ```bash
-fnkit mqtt opcua build
+fnkit uns opcua build
 
 # Copy to edge machine:
 #   opcua-bridge-windows-amd64.exe
@@ -392,7 +392,7 @@ No Docker, no runtime dependencies — just the binary, config file, and optiona
 - [eclipse/paho.mqtt.golang](https://github.com/eclipse/paho.mqtt.golang) — MQTT client
 - [gopkg.in/yaml.v3](https://gopkg.in/yaml.v3) — YAML configuration
 
-## UNS Plugin (`fnkit mqtt`)
+## UNS Plugin (`fnkit uns`)
 
 FnKit includes a built-in plugin for [Unified Namespace (UNS)](https://www.unsframework.com) workflows — a common industrial IoT pattern where all enterprise data flows through a hierarchical MQTT topic structure following ISA-95.
 
@@ -419,16 +419,16 @@ fnkit-cache (Valkey)
 
 | Command | Description |
 |---|---|
-| `fnkit mqtt uns init [name]` | Scaffold UNS topic monitor (Go MQTT → Valkey) |
-| `fnkit mqtt uns start [name]` | Build & start monitor container |
-| `fnkit mqtt uns stop [name]` | Stop monitor container |
-| `fnkit mqtt cache init [name]` | Scaffold UNS cache reader (Node.js HTTP → JSON) |
-| `fnkit mqtt cache start [name]` | Build & start cache reader |
-| `fnkit mqtt cache stop [name]` | Stop cache reader |
-| `fnkit mqtt log init [name]` | Scaffold PostgreSQL logger (Go HTTP → Postgres) |
-| `fnkit mqtt log start [name]` | Build & start logger |
-| `fnkit mqtt log stop [name]` | Stop logger |
-| `fnkit mqtt status` | Show status of all UNS components |
+| `fnkit uns uns init [name]` | Scaffold UNS topic monitor (Go MQTT → Valkey) |
+| `fnkit uns uns start [name]` | Build & start monitor container |
+| `fnkit uns uns stop [name]` | Stop monitor container |
+| `fnkit uns cache init [name]` | Scaffold UNS cache reader (Node.js HTTP → JSON) |
+| `fnkit uns cache start [name]` | Build & start cache reader |
+| `fnkit uns cache stop [name]` | Stop cache reader |
+| `fnkit uns log init [name]` | Scaffold PostgreSQL logger (Go HTTP → Postgres) |
+| `fnkit uns log start [name]` | Build & start logger |
+| `fnkit uns log stop [name]` | Stop logger |
+| `fnkit uns status` | Show status of all UNS components |
 
 ### Quick Start
 
@@ -437,7 +437,7 @@ fnkit-cache (Valkey)
 fnkit cache start
 
 # 2. Create and configure the UNS monitor
-fnkit mqtt uns init
+fnkit uns uns init
 cd uns-framework
 cp .env.example .env
 # Edit .env: set MQTT_BROKER, auth, TLS certs as needed
@@ -445,14 +445,14 @@ docker compose up -d
 
 # 3. Create the cache reader (HTTP API for cached data)
 cd ..
-fnkit mqtt cache init
+fnkit uns cache init
 cd uns-cache
 cp .env.example .env
 docker compose up -d
 
 # 4. (Optional) Create the PostgreSQL logger
 cd ..
-fnkit mqtt log init
+fnkit uns log init
 cd uns-log
 cp .env.example .env
 # Set config in Valkey:
@@ -463,7 +463,7 @@ docker compose up -d
 
 ### TLS / mTLS Support
 
-The UNS monitor (`fnkit mqtt uns init`) includes full TLS/mTLS support:
+The UNS monitor (`fnkit uns uns init`) includes full TLS/mTLS support:
 
 1. Place certificates in the `certs/` directory
 2. Configure paths in `.env`:
