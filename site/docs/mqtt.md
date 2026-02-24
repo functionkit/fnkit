@@ -1,3 +1,9 @@
+---
+layout: default
+title: MQTT Functions
+nav_order: 13
+---
+
 # MQTT Functions
 
 FnKit supports event-driven functions that subscribe to MQTT topics instead of listening on HTTP. Each function connects to an MQTT broker, subscribes to a topic, and processes messages as they arrive.
