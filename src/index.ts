@@ -16,7 +16,7 @@ import { observe } from './commands/observe'
 import { getPlugin, getPluginNames } from './plugins'
 import logger from './utils/logger'
 
-const VERSION = '0.9.0'
+const VERSION = '0.10.0'
 
 // Canonical runtime names only
 const CANONICAL_RUNTIMES = [
