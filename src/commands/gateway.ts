@@ -80,6 +80,22 @@ http {
             return 200 '{"service": "fnkit-gateway", "usage": "GET /<container-name>[/path]"}';
         }
 
+        # Observe endpoints (no auth — internal monitoring)
+        location ^~ /observe {
+            default_type application/json;
+
+            proxy_pass http://127.0.0.1:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_connect_timeout 5s;
+            proxy_read_timeout 10s;
+            proxy_send_timeout 10s;
+        }
+
         # Orchestrate pipelines
         location ^~ /orchestrate/ {
             default_type application/json;
@@ -247,14 +263,36 @@ const ORCHESTRATOR_PACKAGE_JSON = `{
 
 const ORCHESTRATOR_INDEX = `import Redis from 'ioredis'
 
+// ── Observability: Valkey-backed tracing, events, metrics ────────────
+// Stores traces, events, and per-container metrics in Valkey so the CLI
+// can display Node-RED-level observability via "fnkit observe".
+//
+// Key layout:
+//   fnkit:traces              LIST  — recent request traces (capped at 1000)
+//   fnkit:events              LIST  — recent events/errors (capped at 1000)
+//   fnkit:metrics:<container> STRING — per-container counters (JSON)
+//   fnkit:observe:started     STRING — gateway start timestamp
+
 type Pipeline = {
   mode: 'sequential' | 'parallel'
   steps: string[]
 }
 
+type Metrics = {
+  requests: number
+  errors: number
+  last_active: string
+  status: string
+}
+
 const PORT = 3000
 const CACHE_TTL_MS = 30_000
 const PIPELINE_PREFIX = 'fnkit:pipeline:'
+const TRACE_KEY = 'fnkit:traces'
+const EVENT_KEY = 'fnkit:events'
+const METRICS_PREFIX = 'fnkit:metrics:'
+const MAX_TRACES = 1000
+const MAX_EVENTS = 1000
 
 const CACHE_URL = process.env.CACHE_URL || 'redis://fnkit-cache:6379'
 
@@ -267,13 +305,102 @@ const redis = new Redis(CACHE_URL, {
   },
 })
 
+let redisConnected = false
+
 redis.on('error', (err: Error) => {
   console.error('[orchestrator] Redis error:', err.message)
+  redisConnected = false
+})
+
+redis.on('connect', () => {
+  redisConnected = true
 })
 
 redis.connect().catch(() => {})
 
 const cache = new Map<string, { pipeline: Pipeline; fetchedAt: number }>()
+
+// ── Observability helpers ────────────────────────────────────────────
+
+async function recordTrace(trace: {
+  timestamp: string
+  method: string
+  path: string
+  container: string
+  status: number
+  latency_ms: number
+  preview: string
+  trace_id: string
+  error?: string
+}) {
+  if (!redisConnected) return
+  try {
+    const json = JSON.stringify(trace)
+    await redis.lpush(TRACE_KEY, json)
+    await redis.ltrim(TRACE_KEY, 0, MAX_TRACES - 1)
+  } catch { /* best-effort */ }
+}
+
+async function recordEvent(event: {
+  timestamp: string
+  level: string
+  source: string
+  message: string
+  detail?: string
+}) {
+  if (!redisConnected) return
+  try {
+    const json = JSON.stringify(event)
+    await redis.lpush(EVENT_KEY, json)
+    await redis.ltrim(EVENT_KEY, 0, MAX_EVENTS - 1)
+  } catch { /* best-effort */ }
+}
+
+async function updateMetrics(container: string, statusCode: number) {
+  if (!redisConnected) return
+  try {
+    const key = METRICS_PREFIX + container
+    const raw = await redis.get(key)
+    let metrics: Metrics = raw
+      ? JSON.parse(raw)
+      : { requests: 0, errors: 0, last_active: '', status: 'running' }
+
+    metrics.requests++
+    metrics.last_active = new Date().toISOString()
+    if (statusCode >= 400) metrics.errors++
+    metrics.status = statusCode >= 500 ? 'error' : 'running'
+
+    await redis.set(key, JSON.stringify(metrics))
+  } catch { /* best-effort */ }
+}
+
+function generateTraceId(): string {
+  return Math.random().toString(36).substring(2, 10) +
+    Math.random().toString(36).substring(2, 6)
+}
+
+function truncatePreview(text: string, maxLen = 120): string {
+  if (!text) return ''
+  const oneLine = text.replace(/\\n/g, ' ').trim()
+  if (oneLine.length <= maxLen) return oneLine
+  return oneLine.substring(0, maxLen - 1) + '…'
+}
+
+// Record gateway start event
+async function recordStartEvent() {
+  await recordEvent({
+    timestamp: new Date().toISOString(),
+    level: 'info',
+    source: 'fnkit-gateway',
+    message: 'Gateway started',
+    detail: 'Orchestrator listening on port ' + PORT,
+  })
+  if (redisConnected) {
+    await redis.set('fnkit:observe:started', new Date().toISOString())
+  }
+}
+
+// ── Core functions ───────────────────────────────────────────────────
 
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -322,8 +449,6 @@ async function callFunction(
   body: string,
   contentType: string,
 ): Promise<Response> {
-  // Always use POST when there is a body (even if original request was GET)
-  // Bun fetch() does not allow body with GET/HEAD/OPTIONS
   const effectiveMethod = body.length ? 'POST' : method
   return await fetch('http://' + step + ':8080' + path + query, {
     method: effectiveMethod,
@@ -342,38 +467,94 @@ async function handleSequential(
   method: string,
   body: string,
   contentType: string,
+  traceId: string,
 ): Promise<Response> {
   let currentBody = body
   let currentContentType = contentType
   let lastStatus = 200
 
   for (const step of pipeline.steps) {
-    const response = await callFunction(
-      step,
-      path,
-      query,
-      method,
-      currentBody,
-      currentContentType,
-    )
+    const stepStart = Date.now()
+    let response: Response
+
+    try {
+      response = await callFunction(
+        step,
+        path,
+        query,
+        method,
+        currentBody,
+        currentContentType,
+      )
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      await recordTrace({
+        timestamp: new Date().toISOString(),
+        method,
+        path: '/' + step + path,
+        container: step,
+        status: 502,
+        latency_ms: Date.now() - stepStart,
+        preview: errMsg,
+        trace_id: traceId,
+        error: errMsg,
+      })
+      await recordEvent({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        source: step,
+        message: 'Function call failed',
+        detail: errMsg,
+      })
+      await updateMetrics(step, 502)
+      return jsonResponse({ error: 'Step failed', step, detail: errMsg }, 502)
+    }
+
+    const stepLatency = Date.now() - stepStart
 
     if (!response.ok) {
       const errorText = await response.text()
+      await recordTrace({
+        timestamp: new Date().toISOString(),
+        method,
+        path: '/' + step + path,
+        container: step,
+        status: response.status,
+        latency_ms: stepLatency,
+        preview: truncatePreview(errorText),
+        trace_id: traceId,
+        error: errorText,
+      })
+      await recordEvent({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        source: step,
+        message: 'Step returned ' + response.status,
+        detail: truncatePreview(errorText),
+      })
+      await updateMetrics(step, response.status)
       return jsonResponse(
-        {
-          error: 'Step failed',
-          step,
-          status: response.status,
-          body: errorText,
-        },
+        { error: 'Step failed', step, status: response.status, body: errorText },
         response.status,
       )
     }
 
     currentBody = await response.text()
-    currentContentType =
-      response.headers.get('content-type') || currentContentType
+    currentContentType = response.headers.get('content-type') || currentContentType
     lastStatus = response.status
+
+    // Record successful step trace
+    await recordTrace({
+      timestamp: new Date().toISOString(),
+      method,
+      path: '/' + step + path,
+      container: step,
+      status: response.status,
+      latency_ms: stepLatency,
+      preview: truncatePreview(currentBody),
+      trace_id: traceId,
+    })
+    await updateMetrics(step, response.status)
   }
 
   return new Response(currentBody, {
@@ -389,29 +570,84 @@ async function handleParallel(
   method: string,
   body: string,
   contentType: string,
+  traceId: string,
 ): Promise<Response> {
   const calls = pipeline.steps.map(async (step) => {
-    const response = await callFunction(
-      step,
-      path,
-      query,
-      method,
-      body,
-      contentType,
-    )
+    const stepStart = Date.now()
+    let response: Response
+
+    try {
+      response = await callFunction(step, path, query, method, body, contentType)
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      await recordTrace({
+        timestamp: new Date().toISOString(),
+        method,
+        path: '/' + step + path,
+        container: step,
+        status: 502,
+        latency_ms: Date.now() - stepStart,
+        preview: errMsg,
+        trace_id: traceId,
+        error: errMsg,
+      })
+      await recordEvent({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        source: step,
+        message: 'Function call failed',
+        detail: errMsg,
+      })
+      await updateMetrics(step, 502)
+      throw new Error(JSON.stringify({ step, status: 502, body: errMsg }))
+    }
+
+    const stepLatency = Date.now() - stepStart
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(
-        JSON.stringify({
-          step,
-          status: response.status,
-          body: errorText,
-        }),
-      )
+      await recordTrace({
+        timestamp: new Date().toISOString(),
+        method,
+        path: '/' + step + path,
+        container: step,
+        status: response.status,
+        latency_ms: stepLatency,
+        preview: truncatePreview(errorText),
+        trace_id: traceId,
+        error: errorText,
+      })
+      await recordEvent({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        source: step,
+        message: 'Step returned ' + response.status,
+        detail: truncatePreview(errorText),
+      })
+      await updateMetrics(step, response.status)
+      throw new Error(JSON.stringify({ step, status: response.status, body: errorText }))
     }
 
-    return { step, result: await parseResponseBody(response) }
+    const resultText = await response.text()
+    await recordTrace({
+      timestamp: new Date().toISOString(),
+      method,
+      path: '/' + step + path,
+      container: step,
+      status: response.status,
+      latency_ms: stepLatency,
+      preview: truncatePreview(resultText),
+      trace_id: traceId,
+    })
+    await updateMetrics(step, response.status)
+
+    let result: unknown = resultText
+    const ct = response.headers.get('content-type') || ''
+    if (ct.includes('application/json')) {
+      try { result = JSON.parse(resultText) } catch { /* keep as string */ }
+    }
+
+    return { step, result }
   })
 
   try {
@@ -422,17 +658,89 @@ async function handleParallel(
     }
     return jsonResponse(merged)
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Parallel execution failed'
+    const message = error instanceof Error ? error.message : 'Parallel execution failed'
     return jsonResponse({ error: 'Parallel execution failed', details: message }, 502)
   }
 }
+
+// ── Observe API endpoints ────────────────────────────────────────────
+
+async function handleObserve(url: URL): Promise<Response> {
+  const subpath = url.pathname.replace('/observe', '').replace(/^\\//, '')
+
+  switch (subpath) {
+    case '':
+    case 'status': {
+      const started = await redis.get('fnkit:observe:started')
+      const traceCount = await redis.llen(TRACE_KEY)
+      const eventCount = await redis.llen(EVENT_KEY)
+      const metricKeys = await redis.keys(METRICS_PREFIX + '*')
+      const pipelineKeys = await redis.keys(PIPELINE_PREFIX + '*')
+
+      const metrics: Record<string, unknown> = {}
+      for (const key of metricKeys) {
+        const raw = await redis.get(key)
+        if (raw) {
+          const name = key.replace(METRICS_PREFIX, '')
+          try { metrics[name] = JSON.parse(raw) } catch { metrics[name] = raw }
+        }
+      }
+
+      return jsonResponse({
+        service: 'fnkit-gateway',
+        started: started || null,
+        traces: traceCount,
+        events: eventCount,
+        pipelines: pipelineKeys.length,
+        containers: metrics,
+      })
+    }
+
+    case 'traces': {
+      const count = parseInt(url.searchParams.get('count') || '50')
+      const raw = await redis.lrange(TRACE_KEY, 0, count - 1)
+      const traces = raw.map((r: string) => { try { return JSON.parse(r) } catch { return r } })
+      return jsonResponse({ count: traces.length, traces })
+    }
+
+    case 'events': {
+      const count = parseInt(url.searchParams.get('count') || '50')
+      const raw = await redis.lrange(EVENT_KEY, 0, count - 1)
+      const events = raw.map((r: string) => { try { return JSON.parse(r) } catch { return r } })
+      return jsonResponse({ count: events.length, events })
+    }
+
+    case 'metrics': {
+      const metricKeys = await redis.keys(METRICS_PREFIX + '*')
+      const metrics: Record<string, unknown> = {}
+      for (const key of metricKeys) {
+        const raw = await redis.get(key)
+        if (raw) {
+          const name = key.replace(METRICS_PREFIX, '')
+          try { metrics[name] = JSON.parse(raw) } catch { metrics[name] = raw }
+        }
+      }
+      return jsonResponse(metrics)
+    }
+
+    default:
+      return jsonResponse({ error: 'Unknown observe endpoint', available: ['status', 'traces', 'events', 'metrics'] }, 404)
+  }
+}
+
+// ── Server ───────────────────────────────────────────────────────────
 
 Bun.serve({
   port: PORT,
   async fetch(request) {
     const url = new URL(request.url)
 
+    // ── Observe endpoints ────────────────────────────────────────────
+    if (url.pathname.startsWith('/observe')) {
+      return handleObserve(url)
+    }
+
+    // ── Orchestrate endpoints ────────────────────────────────────────
     if (!url.pathname.startsWith('/orchestrate/')) {
       return jsonResponse({ error: 'Not found' }, 404)
     }
@@ -448,6 +756,8 @@ Bun.serve({
     const method = request.method || 'POST'
     const contentType = request.headers.get('content-type') || 'application/json'
     const body = await request.text()
+    const traceId = generateTraceId()
+    const startTime = Date.now()
 
     try {
       const pipeline = await loadPipeline(pipelineName)
@@ -456,34 +766,63 @@ Bun.serve({
         return jsonResponse({ error: 'Pipeline has no steps' }, 400)
       }
 
+      let response: Response
+
       if (pipeline.mode === 'parallel') {
-        return await handleParallel(
-          pipeline,
-          path,
-          query,
-          method,
-          body,
-          contentType,
-        )
+        response = await handleParallel(pipeline, path, query, method, body, contentType, traceId)
+      } else {
+        response = await handleSequential(pipeline, path, query, method, body, contentType, traceId)
       }
 
-      return await handleSequential(
-        pipeline,
-        path,
-        query,
+      // Record top-level pipeline trace
+      const totalLatency = Date.now() - startTime
+      const responseBody = await response.clone().text()
+      await recordTrace({
+        timestamp: new Date().toISOString(),
         method,
-        body,
-        contentType,
-      )
+        path: '/orchestrate/' + pipelineName + path,
+        container: 'orchestrator',
+        status: response.status,
+        latency_ms: totalLatency,
+        preview: truncatePreview(responseBody),
+        trace_id: traceId,
+      })
+
+      return response
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
+      const totalLatency = Date.now() - startTime
+
+      await recordTrace({
+        timestamp: new Date().toISOString(),
+        method,
+        path: '/orchestrate/' + pipelineName + path,
+        container: 'orchestrator',
+        status: 500,
+        latency_ms: totalLatency,
+        preview: message,
+        trace_id: traceId,
+        error: message,
+      })
+      await recordEvent({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        source: 'orchestrator',
+        message: 'Pipeline failed: ' + pipelineName,
+        detail: message,
+      })
+
       return jsonResponse({ error: message }, 500)
     }
   },
 })
 
+// Record start event after a short delay (wait for Redis connection)
+setTimeout(() => recordStartEvent(), 2000)
+
 console.log('FnKit orchestrator listening on port ' + PORT)
 console.log('Pipeline storage: Valkey at ' + CACHE_URL)
+console.log('Observability: traces, events, metrics → Valkey')
 `
 
 const README = `# FnKit Gateway

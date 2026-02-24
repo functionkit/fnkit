@@ -46,6 +46,7 @@ git add . && git commit -m "init" && git push
 | **MQTT Functions**            | Event-driven functions that subscribe to MQTT topics               | [MQTT](docs/mqtt.md)                                   |
 | **OPC-UA Bridge**             | OPC-UA → MQTT bridge with cross-compiled edge binaries (.exe)      | [MQTT → OPC-UA](docs/mqtt.md#opc-ua-bridge-fnkit-mqtt-opcua) |
 | **UNS Plugin**                | Industrial IoT: MQTT monitor → cache → PostgreSQL logger           | [MQTT → UNS](docs/mqtt.md#uns-plugin-fnkit-mqtt)       |
+| **Observability**             | Node-RED-level traces, events, metrics — CLI + HTTP API            | [Observability](docs/observe.md)                       |
 | **Container Management**      | List, log, and stop deployed function containers                   | [Commands](docs/commands.md#containers)                |
 
 ## Supported Runtimes
@@ -86,6 +87,7 @@ git add . && git commit -m "init" && git push
 | `fnkit uns opcua init\|start\|stop\|build`| OPC-UA → MQTT bridge                        |
 | `fnkit uns uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
 | `fnkit image build\|push`                  | Build & push Docker images                  |
+| `fnkit observe [status\|events\|traces\|metrics]` | Observability dashboard & traces      |
 | `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
 
 → [Full command reference](docs/commands.md)
@@ -101,6 +103,7 @@ git add . && git commit -m "init" && git push
 - **[Reverse Proxy](docs/proxy.md)** — Automatic HTTPS and domain management via Caddy
 - **[Deploy Pipelines](docs/deploy.md)** — Git-push-to-deploy with Forgejo or GitHub Actions
 - **[MQTT Functions](docs/mqtt.md)** — Event-driven functions with MQTT topics
+- **[Observability](docs/observe.md)** — Traces, events, metrics — Node-RED-level visibility
 - **[Production Deployment](docs/production.md)** — Full server setup guide
 
 ## Development

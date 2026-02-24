@@ -12,6 +12,7 @@ import { gateway } from './commands/gateway'
 import { deploy } from './commands/deploy'
 import { proxy } from './commands/proxy'
 import { cache } from './commands/cache'
+import { observe } from './commands/observe'
 import { getPlugin, getPluginNames } from './plugins'
 import logger from './utils/logger'
 
@@ -52,6 +53,7 @@ Commands:
   proxy ...                          Manage reverse proxy (Caddy)
   deploy ...                         Manage CI/CD deploy pipeline
   image ...                          Build & push Docker images
+  observe ...                        Observability dashboard & traces
 
   uns ...                            UNS plugin commands
 
@@ -682,6 +684,53 @@ Examples:
         const uninstallSuccess = await uninstall()
         process.exit(uninstallSuccess ? 0 : 1)
         break
+
+      // ─────────────────────────────────────────────────────────────────
+      // Observability: fnkit observe [status|events|traces|metrics]
+      // ─────────────────────────────────────────────────────────────────
+
+      case 'observe': {
+        const observeSubcmd = positionalArgs[0]
+        if (options.help || options.h) {
+          console.log(`
+fnkit observe — Observability dashboard
+
+Node-RED-level observability for your fnkit platform. Shows component health,
+request traces, events/errors, and per-container metrics.
+
+Data is recorded automatically by the gateway and stored in Valkey.
+
+Usage:
+  fnkit observe [command] [options]
+
+Commands:
+  status                Unified dashboard (default)
+  events                Recent events and errors
+  traces                Recent request traces through the gateway
+  metrics               Per-container request counts and error rates
+
+Options:
+  --count, -n <num>     Number of items to show (default: 50)
+
+Examples:
+  fnkit observe                         Show status dashboard
+  fnkit observe events                  Show recent events
+  fnkit observe traces                  Show request traces
+  fnkit observe traces --count 100      Show last 100 traces
+  fnkit observe metrics                 Show per-container metrics
+
+HTTP API (via gateway):
+  curl http://localhost:8080/observe/status
+  curl http://localhost:8080/observe/traces?count=20
+  curl http://localhost:8080/observe/events
+  curl http://localhost:8080/observe/metrics
+`)
+          process.exit(0)
+        }
+        const observeSuccess = await observe(observeSubcmd, options)
+        process.exit(observeSuccess ? 0 : 1)
+        break
+      }
 
       // ─────────────────────────────────────────────────────────────────
       // Plugin system: fnkit <plugin> <command> <subcommand> [args]

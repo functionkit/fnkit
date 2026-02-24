@@ -457,6 +457,53 @@ Show status of all MQTT/UNS components.
 fnkit mqtt status
 ```
 
+## Observability
+
+Manage observability — traces, events, metrics. See [Observability docs](observe.md) for full details.
+
+### `fnkit observe`
+
+Show the unified status dashboard — component health, recent events, and recent traces.
+
+```bash
+fnkit observe
+fnkit observe status
+```
+
+### `fnkit observe events`
+
+Show recent events — connections, errors, status changes.
+
+```bash
+fnkit observe events
+fnkit observe events --count 100
+```
+
+| Option          | Description                            |
+| --------------- | -------------------------------------- |
+| `--count`, `-n` | Number of events to show (default: 50) |
+
+### `fnkit observe traces`
+
+Show recent request traces through the gateway.
+
+```bash
+fnkit observe traces
+fnkit observe traces --count 100
+```
+
+| Option          | Description                            |
+| --------------- | -------------------------------------- |
+| `--count`, `-n` | Number of traces to show (default: 50) |
+
+### `fnkit observe metrics`
+
+Show per-container request counts, error rates, and last activity.
+
+```bash
+fnkit observe metrics
+```
+
 ## Utilities
 
 ### `fnkit doctor [runtime]`

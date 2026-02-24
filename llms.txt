@@ -502,6 +502,50 @@ FUNCTION_TARGET=uns-cache, CACHE_URL=redis://fnkit-cache:6379, CACHE_KEY_PREFIX=
 
 FUNCTION_TARGET=uns-log, DATABASE_URL (PostgreSQL connection string), CACHE_URL=redis://fnkit-cache:6379, CACHE_KEY_PREFIX=uns. Topic config stored in Valkey at `fnkit:config:<FUNCTION_TARGET>` as JSON: `{"table":"uns_log","topics":["v1.0/enterprise/site/area/line/tag"]}`.
 
+## Observability
+
+FnKit provides Node-RED-level observability for the function platform. The gateway automatically records request traces, events, errors, and per-container metrics to the shared Valkey cache. Query via CLI or HTTP API.
+
+Architecture: Gateway orchestrator records all pipeline requests → Valkey cache (fnkit:traces, fnkit:events, fnkit:metrics:*) → CLI reads and displays, or HTTP API serves JSON.
+
+### CLI Commands
+
+`fnkit observe` — Show unified status dashboard (component health, recent events, recent traces). Default command.
+
+`fnkit observe events` — Show recent events (connections, errors, status changes).
+Options: `--count` / `-n` (number of events, default 50).
+
+`fnkit observe traces` — Show recent request traces through the gateway (method, path, status, latency, response preview).
+Options: `--count` / `-n` (number of traces, default 50).
+
+`fnkit observe metrics` — Show per-container request counts, error rates, last activity. Also shows cache stats and UNS topic counts.
+
+### HTTP API (via gateway, no auth required)
+
+`GET /observe/status` — Aggregated status: gateway start time, trace/event counts, pipeline count, per-container metrics.
+
+`GET /observe/traces?count=50` — Recent request traces as JSON array.
+
+`GET /observe/events?count=50` — Recent events as JSON array.
+
+`GET /observe/metrics` — Per-container metrics (requests, errors, last_active, status).
+
+### What Gets Recorded
+
+Traces: Every orchestrator pipeline request — timestamp, method, path, container, status code, latency_ms, response preview (120 chars), trace_id (links pipeline steps), error message on failure. Each pipeline step gets its own trace plus a top-level pipeline trace sharing the same trace_id.
+
+Events: Gateway started (info), function call failed (error), step returned 4xx/5xx (error), pipeline failed (error).
+
+Metrics: Per-container counters — requests (total), errors (status ≥ 400), last_active (timestamp), status (running/error).
+
+### Valkey Key Layout
+
+fnkit:traces (LIST) — last 1000 request traces (JSON). fnkit:events (LIST) — last 1000 events (JSON). fnkit:metrics:<container> (STRING) — per-container metrics (JSON). fnkit:observe:started (STRING) — gateway start timestamp. Lists capped at 1000 via LTRIM.
+
+### Node-RED Comparison
+
+Debug sidebar → `fnkit observe traces` / `GET /observe/traces`. Status nodes → `fnkit observe status` / `GET /observe/status`. Catch nodes → `fnkit observe events` / `GET /observe/events`. Node status indicators → `fnkit observe metrics` / `GET /observe/metrics`. Connection status → MQTT → OPC-UA bridge status_topic (already built-in).
+
 ## Project Structure
 
 ```
@@ -518,6 +562,7 @@ fnkit/
 │   │   ├── gateway.ts        # API gateway management
 │   │   ├── proxy.ts          # Caddy proxy management
 │   │   ├── deploy.ts         # CI/CD pipelines (Forgejo/GitHub)
+│   │   ├── observe.ts        # Observability (traces, events, metrics)
 │   │   ├── doctor.ts         # Runtime dependency checks
 │   │   └── global.ts         # Install/uninstall
 │   ├── plugins/
