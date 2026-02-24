@@ -212,9 +212,13 @@ Open mode: Start without `--token` for open access (development use).
 
 If container doesn't exist: `{"error": "Function not found or not running", "container": "<name>"}`.
 
-### Orchestrator
+The gateway includes a built-in Bun-based orchestrator for multi-function pipelines, accessed via `/orchestrate/<name>`. See the Orchestrator section below for details.
 
-Multi-function pipelines stored in the shared Valkey cache at `fnkit:pipeline:<name>`.
+Gateway environment variables: FNKIT_AUTH_TOKEN, CACHE_URL (default redis://fnkit-cache:6379).
+
+## Orchestrator
+
+Multi-function pipelines — call several functions in a single request. Runs as a Bun-based server inside the API gateway, accessed via the `/orchestrate/<name>` route. Pipeline configurations are stored in the shared Valkey cache at `fnkit:pipeline:<name>`.
 
 Sequential pipelines: Each step receives previous step's output. Final output returned to caller. If any step fails, pipeline stops.
 
@@ -236,7 +240,9 @@ Pipeline config format (stored as JSON in Valkey):
 {"mode":"sequential","steps":["validate","charge","notify"]}
 ```
 
-Gateway environment variables: FNKIT_AUTH_TOKEN, CACHE_URL (default redis://fnkit-cache:6379).
+Managing pipelines: `fnkit gateway orchestrate ls` (list all), `fnkit gateway orchestrate remove <name>` (delete).
+
+Environment variables: CACHE_URL (default redis://fnkit-cache:6379).
 
 ## Shared Cache
 
