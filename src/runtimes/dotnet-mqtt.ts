@@ -114,6 +114,47 @@ public class Function : IMqttFunction
         return Task.CompletedTask;
     }
 }
+
+// ── Publish to another MQTT topic ────────────────────────────────────
+// Uncomment to publish messages to other topics from within your function.
+// Install: dotnet add package MQTTnet
+//
+// using MQTTnet;
+// using MQTTnet.Client;
+//
+// public class Publisher
+// {
+//     private static readonly Lazy<Task<IMqttClient>> _client = new(CreateClientAsync);
+//
+//     private static async Task<IMqttClient> CreateClientAsync()
+//     {
+//         var factory = new MqttFactory();
+//         var client = factory.CreateMqttClient();
+//         var broker = Environment.GetEnvironmentVariable("MQTT_BROKER") ?? "mqtt://localhost:1883";
+//         var uri = new Uri(broker);
+//         var options = new MqttClientOptionsBuilder()
+//             .WithTcpServer(uri.Host, uri.Port)
+//             .Build();
+//         await client.ConnectAsync(options);
+//         return client;
+//     }
+//
+//     public static async Task PublishAsync(string topic, object payload)
+//     {
+//         var client = await _client.Value;
+//         var json = System.Text.Json.JsonSerializer.Serialize(payload);
+//         var message = new MqttApplicationMessageBuilder()
+//             .WithTopic(topic)
+//             .WithPayload(json)
+//             .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+//             .Build();
+//         await client.PublishAsync(message);
+//     }
+// }
+//
+// // Usage inside your function:
+// // await Publisher.PublishAsync("sensors/processed", new { temperature = 22.5 });
+// ─────────────────────────────────────────────────────────────────────
 `,
         'Program.cs': `using FnKit.Functions.Hosting;
 

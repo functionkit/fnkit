@@ -85,6 +85,20 @@ fnkit.mqtt('helloWorld', (req, res) => {
   const name = req.body?.name || 'World';
   res.send({ message: \`Hello, \${name}!\` });
 });
+
+// ── Publish to another MQTT topic ────────────────────────────────────
+// Uncomment to publish messages to other topics from within your function.
+// Install: npm install mqtt
+//
+// const mqtt = require('mqtt');
+// const pub = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
+//
+// fnkit.mqtt('myPublisher', (req, res) => {
+//   const processed = { temperature: req.body.raw * 0.1 };
+//   pub.publish('sensors/processed', JSON.stringify(processed));
+//   res.send({ status: 'published' });
+// });
+// ─────────────────────────────────────────────────────────────────────
 `,
       '.env.example': `# MQTT broker connection
 MQTT_BROKER=mqtt://localhost:1883

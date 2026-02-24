@@ -100,6 +100,32 @@ func helloWorld(req *functions.MqttRequest, res functions.MqttResponse) {
 \t\t"message": fmt.Sprintf("Hello, %s!", name),
 \t})
 }
+
+// ── Publish to another MQTT topic ────────────────────────────────────
+// Uncomment to publish messages to other topics from within your function.
+// Install: go get github.com/eclipse/paho.mqtt.golang
+//
+// import (
+// \t"encoding/json"
+// \tmqtt "github.com/eclipse/paho.mqtt.golang"
+// )
+//
+// var pub mqtt.Client
+//
+// func init() {
+// \topts := mqtt.NewClientOptions().AddBroker(os.Getenv("MQTT_BROKER"))
+// \tpub = mqtt.NewClient(opts)
+// \tif token := pub.Connect(); token.Wait() && token.Error() != nil {
+// \t\tlog.Fatalf("publish client: %v", token.Error())
+// \t}
+// }
+//
+// func publishProcessed(req *functions.MqttRequest, res functions.MqttResponse) {
+// \tpayload, _ := json.Marshal(map[string]float64{"temperature": 22.5})
+// \tpub.Publish("sensors/processed", 1, false, payload)
+// \tres.Send(map[string]string{"status": "published"})
+// }
+// ─────────────────────────────────────────────────────────────────────
 `,
       'cmd/main.go': `package main
 

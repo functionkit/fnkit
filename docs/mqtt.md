@@ -187,6 +187,113 @@ MQTT_SUBSCRIBE_TOPIC=sensors/#
 MQTT_SUBSCRIBE_TOPIC=sensors/+/room1
 ```
 
+## Publishing from a Function
+
+MQTT functions subscribe to topics by default, but you can also **publish** to other topics from within your handler. This is useful for processing pipelines — e.g. subscribe to `sensors/raw`, transform the data, and publish to `sensors/processed`.
+
+Each runtime uses a standard MQTT client library to create a publish connection alongside the framework's subscribe connection.
+
+### Node.js
+
+```bash
+npm install mqtt
+```
+
+```js
+const fnkit = require('@functionkit/functions-framework');
+const mqtt = require('mqtt');
+
+const pub = mqtt.connect(process.env.MQTT_BROKER || 'mqtt://localhost:1883');
+
+fnkit.mqtt('processRaw', (req, res) => {
+  const processed = { temperature: req.body.raw * 0.1 };
+  pub.publish('sensors/processed', JSON.stringify(processed));
+  res.send({ status: 'published' });
+});
+```
+
+### Go
+
+```bash
+go get github.com/eclipse/paho.mqtt.golang
+```
+
+```go
+import (
+    "encoding/json"
+    "os"
+    mqtt "github.com/eclipse/paho.mqtt.golang"
+    "github.com/functionkit/function-framework-go/functions"
+)
+
+var pub mqtt.Client
+
+func init() {
+    opts := mqtt.NewClientOptions().AddBroker(os.Getenv("MQTT_BROKER"))
+    pub = mqtt.NewClient(opts)
+    if token := pub.Connect(); token.Wait() && token.Error() != nil {
+        log.Fatalf("publish client: %v", token.Error())
+    }
+    functions.MQTT("processRaw", processRaw)
+}
+
+func processRaw(req *functions.MqttRequest, res functions.MqttResponse) {
+    payload, _ := json.Marshal(map[string]float64{"temperature": 22.5})
+    pub.Publish("sensors/processed", 1, false, payload)
+    res.Send(map[string]string{"status": "published"})
+}
+```
+
+### .NET
+
+```bash
+dotnet add package MQTTnet
+```
+
+```csharp
+using MQTTnet;
+using MQTTnet.Client;
+
+public class Publisher
+{
+    private static readonly Lazy<Task<IMqttClient>> _client = new(CreateClientAsync);
+
+    private static async Task<IMqttClient> CreateClientAsync()
+    {
+        var factory = new MqttFactory();
+        var client = factory.CreateMqttClient();
+        var broker = Environment.GetEnvironmentVariable("MQTT_BROKER") ?? "mqtt://localhost:1883";
+        var uri = new Uri(broker);
+        var options = new MqttClientOptionsBuilder()
+            .WithTcpServer(uri.Host, uri.Port)
+            .Build();
+        await client.ConnectAsync(options);
+        return client;
+    }
+
+    public static async Task PublishAsync(string topic, object payload)
+    {
+        var client = await _client.Value;
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic(topic)
+            .WithPayload(json)
+            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+        await client.PublishAsync(message);
+    }
+}
+
+// Usage inside your function:
+await Publisher.PublishAsync("sensors/processed", new { temperature = 22.5 });
+```
+
+### Notes
+
+- The publish client reuses the same `MQTT_BROKER` environment variable as the subscriber
+- Broker authentication (`MQTT_USERNAME`, `MQTT_PASSWORD`) and TLS settings apply to publish connections too — configure them on your client as needed
+- For high-throughput publishing, create the client once (as shown above) rather than per-message
+
 ## QoS Levels
 
 | Level | Name          | Guarantee                                         |
