@@ -1,3 +1,9 @@
+---
+layout: default
+title: Command Reference
+nav_order: 5
+---
+
 # Command Reference
 
 Complete reference for all fnkit CLI commands, flags, and options.
@@ -255,9 +261,30 @@ fnkit proxy ls
 
 Manage CI/CD deploy pipelines. See [Deploy docs](deploy.md) for full details.
 
+### `fnkit deploy remote`
+
+Set up git-push deploy via SSH. Creates a bare git repo on the server with a post-receive hook that builds and deploys your function container. No Forgejo or GitHub Actions needed.
+
+```bash
+fnkit deploy remote --host root@your-server
+fnkit deploy remote                            # uses host from .fnkit
+```
+
+| Option   | Description                                          |
+| -------- | ---------------------------------------------------- |
+| `--host` | SSH host (e.g. `root@server.com`). Saved to `.fnkit` |
+
+On the server, creates:
+- Bare git repo at `/opt/fnkit/repos/<function>.git`
+- Post-receive hook with build → deploy → health check → rollback
+
+Locally:
+- Adds `deploy` git remote
+- Saves host to `.fnkit` config file
+
 ### `fnkit deploy setup`
 
-Interactive setup wizard. Checks prerequisites, generates the deploy workflow, and prints a checklist.
+Interactive setup wizard for Forgejo or GitHub Actions. Checks prerequisites, generates the deploy workflow, and prints a checklist.
 
 ```bash
 fnkit deploy setup
@@ -455,6 +482,53 @@ Show status of all MQTT/UNS components.
 
 ```bash
 fnkit mqtt status
+```
+
+## Observability
+
+Manage observability — traces, events, metrics. See [Observability docs](observe.md) for full details.
+
+### `fnkit observe`
+
+Show the unified status dashboard — component health, recent events, and recent traces.
+
+```bash
+fnkit observe
+fnkit observe status
+```
+
+### `fnkit observe events`
+
+Show recent events — connections, errors, status changes.
+
+```bash
+fnkit observe events
+fnkit observe events --count 100
+```
+
+| Option          | Description                            |
+| --------------- | -------------------------------------- |
+| `--count`, `-n` | Number of events to show (default: 50) |
+
+### `fnkit observe traces`
+
+Show recent request traces through the gateway.
+
+```bash
+fnkit observe traces
+fnkit observe traces --count 100
+```
+
+| Option          | Description                            |
+| --------------- | -------------------------------------- |
+| `--count`, `-n` | Number of traces to show (default: 50) |
+
+### `fnkit observe metrics`
+
+Show per-container request counts, error rates, and last activity.
+
+```bash
+fnkit observe metrics
 ```
 
 ## Utilities

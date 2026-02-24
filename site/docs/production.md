@@ -16,20 +16,19 @@ By the end of this guide you'll have:
 - The API gateway with token authentication
 - A shared Valkey cache
 - Automatic HTTPS via Caddy + Let's Encrypt
-- Self-hosted Forgejo for git + CI/CD
-- A Forgejo Actions runner for git-push-to-deploy
+- Git-push-to-deploy (via remote hook — no Forgejo needed)
 - Functions deployed in any of the 12 supported runtimes
 
 ```
 Internet → Caddy (443, auto-TLS) → Gateway (8080, auth) → Function containers
                                                               ↑
-                                              Forgejo + Runner (git push → deploy)
+                                              git push → post-receive hook → deploy
 ```
 
 ## Prerequisites
 
 - A server (Ubuntu 22.04+ recommended) with a public IP
-- A domain name pointing to the server (e.g. `api.example.com`, `git.example.com`)
+- A domain name pointing to the server (e.g. `api.example.com`)
 - SSH access to the server
 
 ## 1. Server Setup
@@ -101,166 +100,38 @@ fnkit cache start
 
 Functions can now connect at `redis://fnkit-cache:6379`. See [Cache docs](cache.md).
 
-## 4. Forgejo (Git + CI/CD)
-
-Forgejo is a lightweight, self-hosted Git forge with built-in CI/CD (Actions).
-
-### Install Forgejo
-
-Create a `forgejo/` directory and a `docker-compose.yml`:
-
-```yaml
-services:
-  forgejo:
-    image: codeberg.org/forgejo/forgejo:9
-    container_name: forgejo
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-      - '2222:22'
-    volumes:
-      - forgejo-data:/data
-    environment:
-      - USER_UID=1000
-      - USER_GID=1000
-      - FORGEJO__actions__ENABLED=true
-      - FORGEJO__security__INSTALL_LOCK=true
-      - FORGEJO__server__ROOT_URL=https://git.example.com/
-      - FORGEJO__server__DOMAIN=git.example.com
-      - FORGEJO__server__SSH_DOMAIN=git.example.com
-      - FORGEJO__server__SSH_PORT=2222
-      - FORGEJO__service__DISABLE_REGISTRATION=true
-    networks:
-      - fnkit-network
-
-volumes:
-  forgejo-data:
-
-networks:
-  fnkit-network:
-    name: fnkit-network
-    external: true
-```
-
-```bash
-docker compose up -d
-```
-
-Setting `INSTALL_LOCK=true` skips the setup wizard and configures Forgejo automatically. Replace `git.example.com` with your domain.
-
-### Create Admin User
-
-> **Note:** Forgejo refuses to run as root. Always use `--user 1000` with `docker exec`.
-
-```bash
-docker exec --user 1000 forgejo forgejo admin user create \
-  --admin --username your-admin --password your-password --email admin@example.com
-```
-
-### Create an API Token (for automation)
-
-```bash
-curl -s -X POST http://localhost:3000/api/v1/users/your-admin/tokens \
-  -u "your-admin:your-password" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"admin-token","scopes":["all"]}'
-```
-
-Save the `sha1` value from the response — this is your API token for managing repos and runners programmatically.
-
-### Enable Actions
-
-Actions are enabled automatically via the `FORGEJO__actions__ENABLED=true` environment variable. If not set, enable in: **Site Administration → Actions → Enable**
-
-## 5. Forgejo Runner
-
-```bash
-fnkit deploy runner
-cd fnkit-runner
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-FORGEJO_INSTANCE=https://git.example.com
-FORGEJO_RUNNER_TOKEN=your-registration-token
-```
-
-Get the registration token from **Site Administration → Actions → Runners → Create new runner**, or via the API:
-
-```bash
-curl -s http://localhost:3000/api/v1/admin/runners/registration-token \
-  -H "Authorization: token your-api-token"
-```
-
-```bash
-docker compose up -d
-```
-
-Verify the runner appears in **Site Administration → Actions → Runners**.
-
-See [Deploy docs](deploy.md) for full runner configuration.
-
-## 6. HTTPS with Caddy
+## 4. HTTPS with Caddy
 
 ```bash
 fnkit proxy init
 fnkit proxy add api.example.com
-fnkit proxy add git.example.com
-```
-
-Edit `fnkit-proxy/Caddyfile` to customise the Forgejo route (it needs to proxy to port 3000, not the gateway):
-
-```caddy
-api.example.com {
-    reverse_proxy fnkit-gateway:8080
-}
-
-git.example.com {
-    reverse_proxy forgejo:3000
-}
 ```
 
 ```bash
 cd fnkit-proxy && docker compose up -d
 ```
 
-Make sure DNS A records for both domains point to your server. Caddy provisions TLS certificates automatically.
+Make sure DNS A records point to your server. Caddy provisions TLS certificates automatically.
 
 See [Proxy docs](proxy.md) for more details.
 
-## 7. Deploy a Function
+## 5. Deploy a Function
 
-First, create the repository on Forgejo (via the web UI or API):
-
-```bash
-curl -s -X POST http://localhost:3000/api/v1/user/repos \
-  -H "Authorization: token your-api-token" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"my-api","auto_init":false,"private":false}'
-```
-
-Then on your local machine:
+On your local machine:
 
 ```bash
 # Create a function
 fnkit node my-api
 cd my-api
 
-# Add the Forgejo remote
-git remote add origin https://git.example.com/your-user/my-api.git
-
-# Set up the deploy pipeline
-fnkit deploy init
+# Set up remote deploy (one-time)
+fnkit deploy remote --host root@your-server
 
 # Push to deploy
-git add . && git commit -m "init" && git push -u origin main
+git add . && git commit -m "init" && git push deploy main
 ```
 
-> **Git authentication:** Forgejo requires authentication to push. You can either embed a token in the remote URL (`https://user:token@git.example.com/...`), use SSH keys via port 2222, or configure a [git credential helper](https://git-scm.com/docs/gitcredentials).
-
-The runner builds the image, deploys the container, and runs a health check.
+The post-receive hook builds the image, deploys the container, and runs a health check — all on the server. No Forgejo, no runner, no workflow files.
 
 ### Verify
 
@@ -274,14 +145,13 @@ curl -H "Authorization: Bearer your-secret-token" https://api.example.com/my-api
 ```
 Internet
   │
-  ├── api.example.com → Caddy (443) → fnkit-gateway (8080) → function containers
-  │                                                              ├── my-api
-  │                                                              ├── my-other-api
-  │                                                              └── ...
-  │
-  └── git.example.com → Caddy (443) → Forgejo (3000)
-                                          │
-                                          └── push → runner → docker build → deploy
+  └── api.example.com → Caddy (443) → fnkit-gateway (8080) → function containers
+                                                                ├── my-api
+                                                                ├── my-other-api
+                                                                └── ...
+                                                                  ↑
+                                              git push deploy main → post-receive hook
+                                              (bare repo at /opt/fnkit/repos/*.git)
 ```
 
 ## Deploying More Functions
@@ -291,12 +161,15 @@ Each function is an independent git repository:
 ```bash
 fnkit python another-function
 cd another-function
-git remote add origin https://git.example.com/your-user/another-function.git
-fnkit deploy init
-git add . && git commit -m "init" && git push -u origin main
+fnkit deploy remote --host root@your-server
+git add . && git commit -m "init" && git push deploy main
 ```
 
 It's automatically available at `https://api.example.com/another-function`.
+
+## Alternative: Forgejo + Runner
+
+If you want a web UI for git repos, pull requests, and issues, you can use Forgejo instead of bare repos. See [Deploy docs](deploy.md) for Forgejo and GitHub Actions setup.
 
 ## Troubleshooting
 

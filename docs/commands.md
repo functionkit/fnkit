@@ -255,9 +255,30 @@ fnkit proxy ls
 
 Manage CI/CD deploy pipelines. See [Deploy docs](deploy.md) for full details.
 
+### `fnkit deploy remote`
+
+Set up git-push deploy via SSH. Creates a bare git repo on the server with a post-receive hook that builds and deploys your function container. No Forgejo or GitHub Actions needed.
+
+```bash
+fnkit deploy remote --host root@your-server
+fnkit deploy remote                            # uses host from .fnkit
+```
+
+| Option   | Description                                          |
+| -------- | ---------------------------------------------------- |
+| `--host` | SSH host (e.g. `root@server.com`). Saved to `.fnkit` |
+
+On the server, creates:
+- Bare git repo at `/opt/fnkit/repos/<function>.git`
+- Post-receive hook with build → deploy → health check → rollback
+
+Locally:
+- Adds `deploy` git remote
+- Saves host to `.fnkit` config file
+
 ### `fnkit deploy setup`
 
-Interactive setup wizard. Checks prerequisites, generates the deploy workflow, and prints a checklist.
+Interactive setup wizard for Forgejo or GitHub Actions. Checks prerequisites, generates the deploy workflow, and prints a checklist.
 
 ```bash
 fnkit deploy setup

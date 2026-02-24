@@ -21,8 +21,8 @@ Scaffold, develop, and deploy serverless functions using Docker and Git push. No
 ```
 Internet → Caddy (TLS/domains) → fnkit-gateway (auth/routing) → Function containers
                                                                     ↑
-                                                    Forgejo/GitHub Actions
-                                                    (git push → docker build → deploy)
+                                                    git push → docker build → deploy
+                                                    (via remote hook, Forgejo, or GitHub Actions)
 ```
 
 **Dependencies:** Docker + Git. That's it.
@@ -56,7 +56,7 @@ git add . && git commit -m "init" && git push
 | **Orchestrator**              | Multi-function pipelines — sequential chaining or parallel fan-out |
 | **Shared Cache**              | Redis-compatible Valkey cache accessible by all functions          |
 | **Reverse Proxy**             | Automatic HTTPS via Caddy with Let's Encrypt                       |
-| **Git-push Deploy**           | CI/CD via Forgejo Actions or GitHub Actions                        |
+| **Git-push Deploy**           | Remote hook, Forgejo Actions, or GitHub Actions                    |
 | **MQTT Functions**            | Event-driven functions that subscribe to MQTT topics               |
 | **UNS Plugin**                | Industrial IoT: MQTT monitor → cache → PostgreSQL logger           |
 | **Container Management**      | List, log, and stop deployed function containers                   |
@@ -93,7 +93,7 @@ git add . && git commit -m "init" && git push
 | `fnkit gateway orchestrate ...`            | Manage multi-function pipelines             |
 | `fnkit cache init\|start\|stop`            | Manage shared Valkey cache                  |
 | `fnkit proxy init\|add\|remove\|ls`        | Manage Caddy reverse proxy                  |
-| `fnkit deploy setup\|init\|runner\|status` | Manage CI/CD pipelines                      |
+| `fnkit deploy remote\|setup\|init\|status` | Manage CI/CD pipelines                      |
 | `fnkit mqtt uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
 | `fnkit image build\|push`                  | Build & push Docker images                  |
 | `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
@@ -107,7 +107,7 @@ git add . && git commit -m "init" && git push
 - **[API Gateway]({% link docs/gateway.md %})** — Token auth, routing, and orchestrator pipelines
 - **[Shared Cache]({% link docs/cache.md %})** — Valkey cache setup with language-specific examples
 - **[Reverse Proxy]({% link docs/proxy.md %})** — Automatic HTTPS and domain management via Caddy
-- **[Deploy Pipelines]({% link docs/deploy.md %})** — Git-push-to-deploy with Forgejo or GitHub Actions
+- **[Deploy Pipelines]({% link docs/deploy.md %})** — Git-push-to-deploy via remote hook, Forgejo, or GitHub Actions
 - **[MQTT Functions]({% link docs/mqtt.md %})** — Event-driven functions with MQTT topics
 - **[UNS Plugin]({% link docs/uns-plugin.md %})** — Industrial IoT: MQTT monitor → cache → PostgreSQL logger
 - **[Production Deployment]({% link docs/production.md %})** — Full server setup guide

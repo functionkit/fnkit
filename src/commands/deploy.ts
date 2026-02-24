@@ -1,6 +1,6 @@
 // Deploy command - generate CI/CD workflows for git-push-to-deploy
 
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { join, resolve, basename } from 'path'
 import logger from '../utils/logger'
 import { exec } from '../utils/shell'
@@ -330,9 +330,331 @@ jobs:
 // Commands
 // ─────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────
+// .fnkit config file — stores deploy remote host
+// ─────────────────────────────────────────────────────────────────
+
+const FNKIT_CONFIG = '.fnkit'
+
+interface FnkitConfig {
+  host?: string
+}
+
+function loadConfig(projectDir: string): FnkitConfig {
+  const configPath = join(projectDir, FNKIT_CONFIG)
+  if (!existsSync(configPath)) return {}
+  try {
+    return JSON.parse(readFileSync(configPath, 'utf-8'))
+  } catch {
+    return {}
+  }
+}
+
+function saveConfig(projectDir: string, config: FnkitConfig): void {
+  const configPath = join(projectDir, FNKIT_CONFIG)
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n')
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Remote deploy — bare git repo + post-receive hook (no Forgejo)
+// ─────────────────────────────────────────────────────────────────
+
+function generatePostReceiveHook(functionName: string): string {
+  return `#!/bin/sh
+# FnKit post-receive hook — build and deploy on git push
+# Installed by: fnkit deploy remote
+
+set -e
+
+FUNCTION_NAME="${functionName}"
+IMAGE_NAME="fnkit-fn-\${FUNCTION_NAME}:latest"
+IMAGE_PREV="fnkit-fn-\${FUNCTION_NAME}:prev"
+WORK_DIR="/tmp/fnkit-build-\${FUNCTION_NAME}"
+
+echo ""
+echo "═══════════════════════════════════════════════════"
+echo "  🚀 FnKit Deploy: \${FUNCTION_NAME}"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+# Only deploy pushes to main/master
+while read oldrev newrev refname; do
+  BRANCH=\$(echo "\$refname" | sed 's|refs/heads/||')
+  if [ "\$BRANCH" != "main" ] && [ "\$BRANCH" != "master" ]; then
+    echo "ℹ  Push to \$BRANCH — skipping deploy (only main/master triggers deploy)"
+    exit 0
+  fi
+done
+
+# Checkout code
+echo "📦 Checking out code..."
+rm -rf "\$WORK_DIR"
+mkdir -p "\$WORK_DIR"
+git --work-tree="\$WORK_DIR" --git-dir="\$(pwd)" checkout -f
+
+# Build
+echo "🔨 Building Docker image..."
+docker build -t "\$IMAGE_NAME" "\$WORK_DIR"
+
+# Ensure network
+docker network create fnkit-network 2>/dev/null || true
+
+# Tag current as :prev for rollback
+docker tag "\$IMAGE_NAME" "\$IMAGE_PREV" 2>/dev/null || true
+
+# Stop and remove old container
+echo "♻️  Replacing running container..."
+docker stop "\$FUNCTION_NAME" 2>/dev/null || true
+docker rm "\$FUNCTION_NAME" 2>/dev/null || true
+
+# Start new container
+echo "🚀 Starting \${FUNCTION_NAME}..."
+docker run -d \\
+  --name "\$FUNCTION_NAME" \\
+  --network fnkit-network \\
+  --label fnkit.fn=true \\
+  --label "fnkit.deployed=\$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+  --restart unless-stopped \\
+  -e CACHE_URL=redis://fnkit-cache:6379 \\
+  "\$IMAGE_NAME"
+
+# Health check
+echo "🏥 Checking container health..."
+sleep 3
+
+if docker ps --filter "name=\$FUNCTION_NAME" --filter "status=running" -q | grep -q .; then
+  echo ""
+  echo "✅ \${FUNCTION_NAME} is running"
+  echo "🌐 Available at gateway: /\${FUNCTION_NAME}"
+else
+  echo ""
+  echo "❌ Container failed to start — rolling back..."
+  docker logs "\$FUNCTION_NAME" 2>&1 || true
+
+  if docker image inspect "\$IMAGE_PREV" >/dev/null 2>&1; then
+    echo "🔄 Rolling back to previous image..."
+    docker rm "\$FUNCTION_NAME" 2>/dev/null || true
+    docker run -d \\
+      --name "\$FUNCTION_NAME" \\
+      --network fnkit-network \\
+      --label fnkit.fn=true \\
+      --label "fnkit.deployed=\$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+      --label fnkit.rollback=true \\
+      --restart unless-stopped \\
+      "\$IMAGE_PREV"
+    echo "⚠️  Rolled back to previous version"
+  fi
+  # Cleanup
+  rm -rf "\$WORK_DIR"
+  exit 1
+fi
+
+# Cleanup
+echo "🧹 Cleaning up..."
+rm -rf "\$WORK_DIR"
+docker image prune -f 2>/dev/null || true
+
+echo ""
+echo "═══════════════════════════════════════════════════"
+echo "  ✅ Deploy complete: \${FUNCTION_NAME}"
+echo "═══════════════════════════════════════════════════"
+echo ""
+`
+}
+
+export async function deployRemote(
+  options: DeployOptions = {},
+): Promise<boolean> {
+  const projectDir = resolve(process.cwd())
+  const projectName = basename(projectDir)
+
+  logger.title('FnKit Remote Deploy')
+
+  // Resolve host: --host flag > .fnkit config
+  const config = loadConfig(projectDir)
+  const host = options.host || config.host
+
+  if (!host) {
+    logger.error('No host specified')
+    logger.newline()
+    logger.info('Provide a host with --host or save one in .fnkit:')
+    logger.dim('  fnkit deploy remote --host user@server.com')
+    logger.newline()
+    logger.info('The host is saved to .fnkit for future deploys.')
+    return false
+  }
+
+  // Check prerequisites
+  logger.info('Checking prerequisites...')
+  logger.newline()
+
+  // Check git
+  const { commandExists } = await import('../utils/shell')
+  const gitInstalled = await commandExists('git')
+  if (!gitInstalled) {
+    logger.error('Git is not installed')
+    return false
+  }
+  logger.success('Git installed')
+
+  // Check if git repo
+  const { isGitRepo } = await import('../utils/git')
+  const isRepo = await isGitRepo(projectDir)
+  if (!isRepo) {
+    logger.warn('Not a git repository — initializing...')
+    const { init } = await import('../utils/git')
+    await init(projectDir)
+    logger.success('Git repository initialized')
+  } else {
+    logger.success('Git repository found')
+  }
+
+  // Check for Dockerfile
+  if (!existsSync(join(projectDir, 'Dockerfile'))) {
+    logger.error('No Dockerfile found')
+    logger.info('Run "fnkit init" to generate a Dockerfile for your project')
+    return false
+  }
+  logger.success('Dockerfile found')
+
+  logger.newline()
+  logger.step(`Setting up remote deploy on ${host}...`)
+  logger.newline()
+
+  // Parse host into user@hostname
+  const repoPath = `/opt/fnkit/repos/${projectName}.git`
+
+  // Create bare repo and install post-receive hook via SSH
+  const hookScript = generatePostReceiveHook(projectName)
+
+  // Escape the hook script for passing through SSH
+  const escapedHook = hookScript.replace(/'/g, "'\\''")
+
+  const sshCommand = [
+    // Create repo directory
+    `mkdir -p ${repoPath}`,
+    // Init bare repo (idempotent)
+    `cd ${repoPath} && git init --bare 2>/dev/null || true`,
+    // Write post-receive hook
+    `cat > ${repoPath}/hooks/post-receive << 'FNKIT_HOOK_EOF'\n${hookScript}FNKIT_HOOK_EOF`,
+    // Make hook executable
+    `chmod +x ${repoPath}/hooks/post-receive`,
+    // Print success
+    `echo "FNKIT_REMOTE_OK"`,
+  ].join(' && ')
+
+  logger.step('Creating bare git repo and installing deploy hook...')
+
+  const sshResult = await exec('ssh', [
+    '-o', 'StrictHostKeyChecking=accept-new',
+    '-o', 'ConnectTimeout=10',
+    host,
+    sshCommand,
+  ])
+
+  if (!sshResult.success || !sshResult.stdout.includes('FNKIT_REMOTE_OK')) {
+    logger.error('Failed to set up remote')
+    if (sshResult.stderr) {
+      logger.dim(`  ${sshResult.stderr}`)
+    }
+    logger.newline()
+    logger.info('Make sure you can SSH to the server:')
+    logger.dim(`  ssh ${host}`)
+    logger.newline()
+    logger.info('The server needs: git, docker')
+    return false
+  }
+
+  logger.success(`Bare repo created at ${host}:${repoPath}`)
+  logger.success('Post-receive deploy hook installed')
+
+  // Add git remote locally
+  const remoteUrl = `${host}:${repoPath}`
+
+  // Check if 'deploy' remote already exists
+  const remoteCheck = await exec('git', ['remote', 'get-url', 'deploy'], {
+    cwd: projectDir,
+  })
+
+  if (remoteCheck.success) {
+    // Remote exists — update it
+    const updateResult = await exec(
+      'git',
+      ['remote', 'set-url', 'deploy', remoteUrl],
+      { cwd: projectDir },
+    )
+    if (updateResult.success) {
+      logger.success(`Updated git remote "deploy" → ${remoteUrl}`)
+    }
+  } else {
+    // Add new remote
+    const addResult = await exec(
+      'git',
+      ['remote', 'add', 'deploy', remoteUrl],
+      { cwd: projectDir },
+    )
+    if (addResult.success) {
+      logger.success(`Added git remote "deploy" → ${remoteUrl}`)
+    } else {
+      logger.error('Failed to add git remote')
+      logger.dim(addResult.stderr)
+      return false
+    }
+  }
+
+  // Save host to .fnkit config
+  config.host = host
+  saveConfig(projectDir, config)
+  logger.success(`Saved host to ${FNKIT_CONFIG}`)
+
+  logger.newline()
+  logger.success('Remote deploy ready!')
+  logger.newline()
+
+  logger.info('Pipeline: git push → build image → deploy container → health check')
+  logger.newline()
+  logger.info('How it works:')
+  logger.dim('  1. Push to main branch')
+  logger.dim(`  2. Server builds Docker image from Dockerfile`)
+  logger.dim(`  3. Container "${projectName}" deploys to fnkit-network`)
+  logger.dim('  4. Health check verifies the container is running')
+  logger.dim('  5. Auto-rollback to previous image on failure')
+  logger.dim(`  6. Available at gateway: /${projectName}`)
+  logger.newline()
+
+  console.log(
+    '╔════════════════════════════════════════════════════════════════╗',
+  )
+  console.log(
+    '║                  📋 Deploy Checklist                         ║',
+  )
+  console.log(
+    '╚════════════════════════════════════════════════════════════════╝',
+  )
+  console.log('')
+  console.log('   ✅ Bare git repo created on server')
+  console.log('   ✅ Deploy hook installed')
+  console.log('   ✅ Git remote "deploy" configured')
+  console.log('   ✅ Host saved to .fnkit')
+  console.log('')
+  console.log('   Deploy now:')
+  console.log('     git add . && git commit -m "deploy" && git push deploy main')
+  console.log('')
+  console.log('   No Forgejo, no runner, no workflow files.')
+  console.log('   Just git push.')
+  console.log('')
+
+  return true
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Commands
+// ─────────────────────────────────────────────────────────────────
+
 export interface DeployOptions {
   provider?: 'forgejo' | 'github'
   output?: string
+  host?: string
 }
 
 export async function deployInit(
@@ -619,7 +941,7 @@ export async function deployStatus(): Promise<boolean> {
 
   logger.title(`Deploy Status: ${projectName}`)
 
-  // Check if deploy workflow exists
+  // Check if deploy is configured
   const forgejoWorkflow = join(
     projectDir,
     '.forgejo',
@@ -627,9 +949,15 @@ export async function deployStatus(): Promise<boolean> {
     'deploy.yml',
   )
   const githubWorkflow = join(projectDir, '.github', 'workflows', 'deploy.yml')
+  const config = loadConfig(projectDir)
 
   let provider: string | null = null
-  if (existsSync(forgejoWorkflow)) {
+  if (config.host) {
+    provider = 'remote'
+    logger.success('Pipeline: Remote deploy (git push → bare repo → hook)')
+    logger.dim(`  Host: ${config.host}`)
+    logger.dim(`  Repo: /opt/fnkit/repos/${projectName}.git`)
+  } else if (existsSync(forgejoWorkflow)) {
     provider = 'forgejo'
     logger.success('Pipeline: Forgejo Actions')
   } else if (existsSync(githubWorkflow)) {
@@ -638,7 +966,7 @@ export async function deployStatus(): Promise<boolean> {
   } else {
     logger.warn('No deploy pipeline configured')
     logger.info(
-      'Run "fnkit deploy init" or "fnkit deploy setup" to set up CI/CD',
+      'Run "fnkit deploy remote --host user@server" or "fnkit deploy setup" to set up CI/CD',
     )
     return true
   }
@@ -737,12 +1065,17 @@ export async function deploy(
       return deploySetup(options)
     case 'status':
       return deployStatus()
+    case 'remote':
+      return deployRemote(options)
     default:
       logger.error(`Unknown deploy command: ${subcommand}`)
-      logger.info('Available commands: init, runner, setup, status')
+      logger.info('Available commands: remote, init, runner, setup, status')
       logger.newline()
       logger.dim(
-        '  fnkit deploy setup                  — Guided pipeline setup',
+        '  fnkit deploy remote --host user@srv — Git push deploy (no Forgejo needed)',
+      )
+      logger.dim(
+        '  fnkit deploy setup                  — Guided pipeline setup (Forgejo/GitHub)',
       )
       logger.dim(
         '  fnkit deploy init                   — Generate deploy workflow (Forgejo)',

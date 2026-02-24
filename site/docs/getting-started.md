@@ -12,7 +12,7 @@ This guide walks you through creating, developing, and deploying your first func
 
 - [Docker](https://docker.com) installed and running
 - [Git](https://git-scm.com) installed
-- [fnkit]({% link docs/installation.md %}) installed
+- [fnkit](installation.md) installed
 - A runtime installed for your language of choice (e.g., Node.js, Python, Go)
 
 Check everything is ready:
@@ -83,7 +83,7 @@ fnkit gateway build
 fnkit gateway start --token your-secret-token
 ```
 
-The gateway runs on port 8080 and authenticates requests with a Bearer token. See [Gateway docs]({% link docs/gateway.md %}) for details.
+The gateway runs on port 8080 and authenticates requests with a Bearer token. See [Gateway docs](gateway.md) for details.
 
 ### (Optional) Start the Shared Cache
 
@@ -92,7 +92,7 @@ fnkit cache init
 fnkit cache start
 ```
 
-All functions can now access a Redis-compatible cache at `redis://fnkit-cache:6379`. See [Cache docs]({% link docs/cache.md %}).
+All functions can now access a Redis-compatible cache at `redis://fnkit-cache:6379`. See [Cache docs](cache.md).
 
 ### (Optional) Set Up HTTPS
 
@@ -102,30 +102,38 @@ fnkit proxy add api.example.com
 cd fnkit-proxy && docker compose up -d
 ```
 
-Caddy handles TLS certificates automatically via Let's Encrypt. See [Proxy docs]({% link docs/proxy.md %}).
+Caddy handles TLS certificates automatically via Let's Encrypt. See [Proxy docs](proxy.md).
 
 ## 4. Deploy
 
-### Set Up CI/CD
+### Set Up Remote Deploy (recommended)
 
 ```bash
-fnkit deploy setup
+fnkit deploy remote --host root@your-server
 ```
 
-This interactive wizard checks prerequisites and generates a deploy workflow for Forgejo (default) or GitHub Actions.
+This SSHs to your server, creates a bare git repo with a deploy hook, and adds a `deploy` git remote locally. No Forgejo or GitHub Actions needed.
 
 ### Push to Deploy
 
 ```bash
-git add . && git commit -m "init" && git push
+git add . && git commit -m "init" && git push deploy main
 ```
 
-The CI pipeline will:
+The post-receive hook will:
 
 1. Build a Docker image from your `Dockerfile`
 2. Deploy the container to `fnkit-network`
 3. Run a health check
 4. Auto-rollback on failure
+
+### Or Use Forgejo/GitHub Actions
+
+```bash
+fnkit deploy setup
+```
+
+This interactive wizard generates a deploy workflow for Forgejo (default) or GitHub Actions.
 
 ### Verify
 
@@ -145,9 +153,13 @@ curl https://api.example.com/my-api
 
 ## What's Next?
 
-- **[Runtimes]({% link docs/runtimes.md %})** — Explore all 12 supported runtimes
-- **[Gateway]({% link docs/gateway.md %})** — Set up orchestrator pipelines for multi-function workflows
-- **[Cache]({% link docs/cache.md %})** — Add caching to your functions
-- **[Deploy]({% link docs/deploy.md %})** — Configure Forgejo or GitHub Actions in detail
-- **[MQTT]({% link docs/mqtt.md %})** — Build event-driven functions with MQTT
-- **[Production]({% link docs/production.md %})** — Full server setup guide
+- **[Runtimes](runtimes.md)** — Explore all 12 supported runtimes
+- **[Gateway](gateway.md)** — Set up orchestrator pipelines for multi-function workflows
+- **[Cache](cache.md)** — Add caching to your functions
+- **[Deploy](deploy.md)** — Configure Forgejo or GitHub Actions in detail
+- **[MQTT](mqtt.md)** — Build event-driven functions with MQTT
+- **[Production](production.md)** — Full server setup guide
+
+---
+
+← [Back to README](../README.md)

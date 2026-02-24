@@ -4,7 +4,7 @@
 
 FnKit is a CLI tool that creates function projects in 12 runtimes (9 HTTP + 3 MQTT), runs them locally, and deploys them via git-push-to-deploy pipelines. The platform consists of an nginx API gateway with token auth, a Valkey shared cache, a Caddy reverse proxy for automatic HTTPS, and CI/CD via Forgejo or GitHub Actions.
 
-Architecture: Internet → Caddy (TLS/domains) → fnkit-gateway (auth/routing) → Function containers. Deploy pipeline: git push → CI runner builds Docker image → deploys container → health check.
+Architecture: Internet → Caddy (TLS/domains) → fnkit-gateway (auth/routing) → Function containers. Deploy pipeline: git push → builds Docker image → deploys container → health check (via remote hook, Forgejo Actions, or GitHub Actions).
 
 Dependencies: Docker + Git.
 
@@ -152,7 +152,10 @@ Options: `--output` (default fnkit-proxy).
 
 ### Deploy Pipelines
 
-`fnkit deploy setup` — Interactive setup wizard. Checks prerequisites, generates workflow, prints checklist.
+`fnkit deploy remote` — Set up git-push deploy via SSH. Creates bare git repo on server with post-receive hook. No Forgejo or GitHub Actions needed. Host saved to `.fnkit` config.
+Options: `--host` (SSH host, e.g. `root@server.com`, saved to `.fnkit`).
+
+`fnkit deploy setup` — Interactive setup wizard for Forgejo/GitHub. Checks prerequisites, generates workflow, prints checklist.
 Options: `--provider` (forgejo default, or github).
 
 `fnkit deploy init` — Generate deploy workflow file.
@@ -319,7 +322,21 @@ Docker volumes: caddy-data (TLS certificates), caddy-config (runtime config). Po
 
 ## Deploy Pipelines
 
-Git-push-to-deploy via Forgejo Actions (default) or GitHub Actions.
+Git-push-to-deploy via remote hook (recommended), Forgejo Actions, or GitHub Actions.
+
+### Remote Pipeline (recommended)
+
+Flow: git push → bare repo on server → post-receive hook → docker build → deploy → health check.
+
+No Forgejo, no runner, no workflow files. Just a bare git repo with a deploy hook. FnKit sets it all up via SSH.
+
+Setup:
+1. `fnkit deploy remote --host user@server` — SSHs to server, creates bare repo at `/opt/fnkit/repos/<name>.git`, installs post-receive hook, adds `deploy` git remote locally, saves host to `.fnkit`
+2. `git push deploy main` to deploy
+
+The post-receive hook: checks out code → docker build → tag previous as :prev → stop old container → start new on fnkit-network → health check → auto-rollback on failure → cleanup.
+
+Host is saved to `.fnkit` config file (JSON with `host` field). Re-running `fnkit deploy remote` updates the hook. The `deploy` git remote is separate from `origin`, so you can keep origin pointing at GitHub/wherever for collaboration.
 
 ### Forgejo Pipeline
 
@@ -390,21 +407,23 @@ Full server setup on bare Ubuntu:
 4. Harden: ufw allow OpenSSH/80/443, enable; add swap
 5. Gateway: `fnkit gateway init && fnkit gateway build && fnkit gateway start --token secret`
 6. Cache: `fnkit cache start`
-7. Forgejo: Run as Docker container on port 3000 with `INSTALL_LOCK=true` to skip wizard, create admin user via `docker exec --user 1000 forgejo forgejo admin user create`, create API token, enable Actions
-8. Runner: `fnkit deploy runner`, get registration token via API or admin panel, configure .env, `docker compose up -d`
-9. HTTPS: `fnkit proxy init`, add domains, edit Caddyfile (git domain → forgejo:3000), `docker compose up -d`
-10. Deploy functions: `fnkit node my-api && cd my-api && fnkit deploy init && git push`
+7. HTTPS: `fnkit proxy init`, add domain, `docker compose up -d`
+8. Deploy functions: `fnkit node my-api && cd my-api && fnkit deploy remote --host root@server && git push deploy main`
 
-Note: Forgejo refuses to run as root inside the container — always use `--user 1000` with `docker exec`. Git push requires authentication (token in URL, SSH keys, or credential helper).
+No Forgejo needed. Each function gets a bare git repo at `/opt/fnkit/repos/<name>.git` with a post-receive hook that builds and deploys on push.
 
 Final architecture:
 ```
 Internet
-  ├── api.example.com → Caddy (443) → fnkit-gateway (8080) → function containers
-  └── git.example.com → Caddy (443) → Forgejo (3000) → push → runner → deploy
+  └── api.example.com → Caddy (443) → fnkit-gateway (8080) → function containers
+                                                                ↑
+                                              git push deploy main → post-receive hook
+                                              (bare repo at /opt/fnkit/repos/*.git)
 ```
 
 Each function is an independent git repo. Push to main deploys automatically. Available at gateway path: `https://api.example.com/<function-name>`.
+
+Alternative: For teams wanting a web UI, PRs, and issues, Forgejo or GitHub Actions can be used instead. See deploy docs for Forgejo/GitHub setup.
 
 ## MQTT / UNS Plugin
 

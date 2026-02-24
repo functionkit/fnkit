@@ -158,29 +158,33 @@ function showDeployHelp() {
   console.log(`
 fnkit deploy — Manage CI/CD deploy pipeline
 
-Automated git-push-to-deploy via Forgejo (default) or GitHub Actions.
+Three deploy methods:
 
-  Forgejo:  push → runner builds image → deploy container → health check
-  GitHub:   push → build & push to GHCR → SSH deploy → health check
+  Remote:   git push → bare repo hook → docker build → deploy (recommended)
+  Forgejo:  git push → runner builds image → deploy container → health check
+  GitHub:   git push → build & push to GHCR → SSH deploy → health check
 
 Usage:
   fnkit deploy <command> [options]
 
 Commands:
-  setup                 Guided deploy pipeline setup (recommended)
-  init                  Generate deploy workflow file
+  remote                Set up git-push deploy via SSH (no Forgejo needed)
+  setup                 Guided deploy pipeline setup (Forgejo/GitHub)
+  init                  Generate deploy workflow file (Forgejo/GitHub)
   runner                Generate Forgejo runner setup files
   status                Check deployment status
 
 Options:
+  --host <user@server>  SSH host for remote deploy
   --provider <name>     Deploy provider: forgejo (default) or github
 
 Examples:
-  fnkit deploy setup                    Interactive setup wizard
-  fnkit deploy init                     Generate Forgejo workflow
-  fnkit deploy init --provider github   Generate GitHub Actions workflow
-  fnkit deploy runner                   Create runner docker-compose
-  fnkit deploy status                   Check pipeline & container status
+  fnkit deploy remote --host root@srv    Set up git push deploy (recommended)
+  fnkit deploy setup                     Interactive setup wizard
+  fnkit deploy init                      Generate Forgejo workflow
+  fnkit deploy init --provider github    Generate GitHub Actions workflow
+  fnkit deploy runner                    Create runner docker-compose
+  fnkit deploy status                    Check pipeline & container status
 `)
 }
 
@@ -623,6 +627,7 @@ Examples:
         const deploySuccess = await deploy(deploySubcmd, {
           provider: options.provider as 'forgejo' | 'github' | undefined,
           output: options.output as string,
+          host: options.host as string,
         })
         process.exit(deploySuccess ? 0 : 1)
         break
