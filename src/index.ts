@@ -17,7 +17,7 @@ import { code } from './commands/code'
 import { getPlugin, getPluginNames } from './plugins'
 import logger from './utils/logger'
 
-const VERSION = '0.10.0'
+const VERSION = '0.11.0'
 
 // Canonical runtime names only
 const CANONICAL_RUNTIMES = [
