@@ -98,6 +98,16 @@ cd fnkit-proxy && docker compose up -d
 
 Caddy handles TLS certificates automatically via Let's Encrypt. See [Proxy docs](proxy.md).
 
+### (Optional) Set Up Code-Server
+
+```bash
+fnkit code init
+fnkit code start --password your-secret
+fnkit code proxy code.example.com
+```
+
+Access VS Code in the browser at `https://code.example.com`. See [Code-Server docs](code.md).
+
 ## 4. Deploy
 
 ### Set Up Remote Deploy (recommended)
@@ -152,6 +162,7 @@ curl https://api.example.com/my-api
 - **[Cache](cache.md)** — Add caching to your functions
 - **[Deploy](deploy.md)** — Configure Forgejo or GitHub Actions in detail
 - **[MQTT](mqtt.md)** — Build event-driven functions with MQTT
+- **[Code-Server](code.md)** — VS Code in the browser for remote development
 - **[Production](production.md)** — Full server setup guide
 
 ---

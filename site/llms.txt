@@ -571,6 +571,44 @@ fnkit:traces (LIST) — last 1000 request traces (JSON). fnkit:events (LIST) —
 
 Debug sidebar → `fnkit observe traces` / `GET /observe/traces`. Status nodes → `fnkit observe status` / `GET /observe/status`. Catch nodes → `fnkit observe events` / `GET /observe/events`. Node status indicators → `fnkit observe metrics` / `GET /observe/metrics`. Connection status → MQTT → OPC-UA bridge status_topic (already built-in).
 
+## Code-Server
+
+FnKit includes a built-in code-server integration — VS Code in the browser. Runs on fnkit-network and is accessed directly through Caddy (bypasses the gateway since code-server has its own password authentication).
+
+Architecture: Browser → Caddy (code.example.com, auto-TLS) → fnkit-code:8443 (code-server). Uses the linuxserver/code-server Docker image with persistent config volume.
+
+### Commands
+
+`fnkit code init` — Create code-server project files (fnkit-code/ directory with docker-compose.yml, .env.example, README.md).
+Options: `--output` (default fnkit-code).
+
+`fnkit code start` — Start the code-server container on fnkit-network.
+Options: `--password` (default changeme), `--sudo-password` (default changeme), `--tz` (default Europe/Madrid).
+
+`fnkit code stop` — Stop the code-server container. Data persists in fnkit-code-config Docker volume.
+
+`fnkit code proxy <domain>` — Add a domain route to the Caddyfile pointing directly to fnkit-code:8443 (bypasses gateway).
+
+### Configuration
+
+Environment variables: PASSWORD (code-server access password), SUDO_PASSWORD (sudo inside container), TZ (timezone, default Europe/Madrid). Container settings: PUID=1000, PGID=1000, DEFAULT_WORKSPACE=/config/workspace.
+
+### Persistent Data
+
+Stored in fnkit-code-config Docker volume: /config/workspace (default workspace), /config/data (VS Code settings, extensions, state), /config/.config (code-server configuration). Survives container restarts and upgrades.
+
+### Setup
+
+```
+fnkit code init
+cd fnkit-code && cp .env.example .env  # configure passwords
+fnkit code start --password your-secret
+fnkit code proxy code.example.com      # add HTTPS domain via Caddy
+docker exec fnkit-proxy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Access at http://localhost:8443 or https://code.example.com (if proxy configured).
+
 ## Project Structure
 
 ```
@@ -588,6 +626,7 @@ fnkit/
 │   │   ├── proxy.ts          # Caddy proxy management
 │   │   ├── deploy.ts         # CI/CD pipelines (Forgejo/GitHub)
 │   │   ├── observe.ts        # Observability (traces, events, metrics)
+│   │   ├── code.ts           # Code-server (VS Code in browser)
 │   │   ├── doctor.ts         # Runtime dependency checks
 │   │   └── global.ts         # Install/uninstall
 │   ├── plugins/

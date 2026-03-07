@@ -136,6 +136,16 @@ These volumes persist across container restarts, so certificates survive redeplo
 | 443 | HTTPS — serves your domains with auto-provisioned TLS |
 | 443/udp | HTTP/3 (QUIC) support |
 
+## Code-Server Domain
+
+To route a domain to code-server (VS Code in the browser) instead of the gateway, use:
+
+```bash
+fnkit code proxy code.example.com
+```
+
+This adds a Caddy route directly to `fnkit-code:8443` — code-server has its own password authentication, so it bypasses the gateway. See [Code-Server docs](code.md) for full setup.
+
 ## Notes
 
 - Port 80 must be open for Let's Encrypt certificate provisioning

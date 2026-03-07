@@ -13,6 +13,7 @@ import { deploy } from './commands/deploy'
 import { proxy } from './commands/proxy'
 import { cache } from './commands/cache'
 import { observe } from './commands/observe'
+import { code } from './commands/code'
 import { getPlugin, getPluginNames } from './plugins'
 import logger from './utils/logger'
 
@@ -54,6 +55,7 @@ Commands:
   deploy ...                         Manage CI/CD deploy pipeline
   image ...                          Build & push Docker images
   observe ...                        Observability dashboard & traces
+  code ...                           Remote VS Code (code-server)
 
   uns ...                            UNS plugin commands
 
@@ -734,6 +736,53 @@ HTTP API (via gateway):
         }
         const observeSuccess = await observe(observeSubcmd, options)
         process.exit(observeSuccess ? 0 : 1)
+        break
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // Code-server: fnkit code <subcommand>
+      // ─────────────────────────────────────────────────────────────────
+
+      case 'code': {
+        const codeSubcmd = positionalArgs[0]
+        if (!codeSubcmd || options.help || options.h) {
+          console.log(`
+fnkit code — Remote VS Code (code-server)
+
+VS Code in the browser powered by code-server. Access a full development
+environment from anywhere with automatic HTTPS via the Caddy proxy.
+
+Usage:
+  fnkit code <command> [options]
+
+Commands:
+  init                  Create code-server project files
+  start                 Start the code-server container
+  stop                  Stop the code-server container
+  proxy <domain>        Add domain route to Caddy proxy
+
+Options:
+  --password <pass>     code-server password (default: changeme)
+  --sudo-password <pass> Sudo password inside container
+  --tz <timezone>       Timezone (default: Europe/Madrid)
+
+Examples:
+  fnkit code init                           Create fnkit-code/ directory
+  fnkit code start                          Start code-server
+  fnkit code start --password secret        Start with custom password
+  fnkit code stop                           Stop code-server
+  fnkit code proxy code.example.com         Route domain via Caddy
+`)
+          process.exit(0)
+        }
+        const codeSuccess = await code(codeSubcmd, {
+          output: options.output as string,
+          password: options.password as string,
+          sudoPassword: (options['sudo-password'] as string),
+          tz: options.tz as string,
+          domain: positionalArgs[1],
+        })
+        process.exit(codeSuccess ? 0 : 1)
         break
       }
 

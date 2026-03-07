@@ -478,6 +478,55 @@ Show status of all MQTT/UNS components.
 fnkit mqtt status
 ```
 
+## Code-Server
+
+Manage the remote VS Code instance (code-server). See [Code-Server docs](code.md) for architecture and detailed usage.
+
+### `fnkit code init`
+
+Create code-server project files (`fnkit-code/` directory).
+
+```bash
+fnkit code init
+fnkit code init --output custom-dir
+```
+
+| Option     | Description                              |
+| ---------- | ---------------------------------------- |
+| `--output` | Output directory (default: `fnkit-code`) |
+
+### `fnkit code start`
+
+Start the code-server container on `fnkit-network`.
+
+```bash
+fnkit code start
+fnkit code start --password your-secret
+fnkit code start --password secret --sudo-password sudo-secret --tz Europe/London
+```
+
+| Option            | Description                                        |
+| ----------------- | -------------------------------------------------- |
+| `--password`      | Password to access code-server (default: changeme) |
+| `--sudo-password` | Sudo password inside the container                 |
+| `--tz`            | Timezone (default: Europe/Madrid)                  |
+
+### `fnkit code stop`
+
+Stop the code-server container. Data persists in the Docker volume.
+
+```bash
+fnkit code stop
+```
+
+### `fnkit code proxy <domain>`
+
+Add a domain route to the Caddyfile, pointing directly to code-server (bypasses the gateway).
+
+```bash
+fnkit code proxy code.example.com
+```
+
 ## Observability
 
 Manage observability — traces, events, metrics. See [Observability docs](observe.md) for full details.

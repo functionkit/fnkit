@@ -109,7 +109,25 @@ Make sure DNS A records point to your server. Caddy provisions TLS certificates 
 
 See [Proxy docs](proxy.md) for more details.
 
-## 5. Deploy a Function
+## 5. Code-Server (optional)
+
+Set up VS Code in the browser for remote development:
+
+```bash
+fnkit code init
+fnkit code start --password your-secret
+fnkit code proxy code.example.com
+```
+
+Reload Caddy to pick up the new domain:
+
+```bash
+docker exec fnkit-proxy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Access VS Code at `https://code.example.com`. See [Code-Server docs](code.md).
+
+## 6. Deploy a Function
 
 On your local machine:
 

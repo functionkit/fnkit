@@ -47,6 +47,7 @@ git add . && git commit -m "init" && git push deploy main
 | **OPC-UA Bridge**             | OPC-UA → MQTT bridge with cross-compiled edge binaries (.exe)      | [MQTT → OPC-UA](docs/mqtt.md#opc-ua-bridge-fnkit-mqtt-opcua) |
 | **UNS Plugin**                | Industrial IoT: MQTT monitor → cache → PostgreSQL logger           | [MQTT → UNS](docs/mqtt.md#uns-plugin-fnkit-mqtt)       |
 | **Observability**             | Node-RED-level traces, events, metrics — CLI + HTTP API            | [Observability](docs/observe.md)                       |
+| **Code-Server**               | VS Code in the browser for remote development                      | [Code-Server](docs/code.md)                            |
 | **Container Management**      | List, log, and stop deployed function containers                   | [Commands](docs/commands.md#containers)                |
 
 ## Supported Runtimes
@@ -88,6 +89,7 @@ git add . && git commit -m "init" && git push deploy main
 | `fnkit uns uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
 | `fnkit image build\|push`                  | Build & push Docker images                  |
 | `fnkit observe [status\|events\|traces\|metrics]` | Observability dashboard & traces      |
+| `fnkit code init\|start\|stop\|proxy`      | Remote VS Code (code-server)                |
 | `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
 
 → [Full command reference](docs/commands.md)
@@ -104,6 +106,7 @@ git add . && git commit -m "init" && git push deploy main
 - **[Deploy Pipelines](docs/deploy.md)** — Git-push-to-deploy via remote hook, Forgejo, or GitHub Actions
 - **[MQTT Functions](docs/mqtt.md)** — Event-driven functions with MQTT topics
 - **[Observability](docs/observe.md)** — Traces, events, metrics — Node-RED-level visibility
+- **[Code-Server](docs/code.md)** — VS Code in the browser for remote development
 - **[Production Deployment](docs/production.md)** — Full server setup guide
 
 ## Development

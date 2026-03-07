@@ -59,6 +59,7 @@ git add . && git commit -m "init" && git push
 | **Git-push Deploy**           | Remote hook, Forgejo Actions, or GitHub Actions                    |
 | **MQTT Functions**            | Event-driven functions that subscribe to MQTT topics               |
 | **UNS Plugin**                | Industrial IoT: MQTT monitor → cache → PostgreSQL logger           |
+| **Code-Server**               | VS Code in the browser for remote development                      |
 | **Container Management**      | List, log, and stop deployed function containers                   |
 
 ## Supported Runtimes
@@ -96,6 +97,7 @@ git add . && git commit -m "init" && git push
 | `fnkit deploy remote\|setup\|init\|status` | Manage CI/CD pipelines                      |
 | `fnkit mqtt uns\|cache\|log\|status`       | MQTT / UNS plugin commands                  |
 | `fnkit image build\|push`                  | Build & push Docker images                  |
+| `fnkit code init\|start\|stop\|proxy`      | Remote VS Code (code-server)                |
 | `fnkit doctor [runtime]`                   | Check runtime dependencies                  |
 
 ## Documentation
@@ -110,4 +112,5 @@ git add . && git commit -m "init" && git push
 - **[Deploy Pipelines]({% link docs/deploy.md %})** — Git-push-to-deploy via remote hook, Forgejo, or GitHub Actions
 - **[MQTT Functions]({% link docs/mqtt.md %})** — Event-driven functions with MQTT topics
 - **[UNS Plugin]({% link docs/uns-plugin.md %})** — Industrial IoT: MQTT monitor → cache → PostgreSQL logger
+- **[Code-Server]({% link docs/code.md %})** — VS Code in the browser for remote development
 - **[Production Deployment]({% link docs/production.md %})** — Full server setup guide
