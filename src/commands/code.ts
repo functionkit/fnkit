@@ -21,11 +21,20 @@ SUDO_PASSWORD=changeme
 
 # Timezone (default: Europe/Madrid)
 TZ=Europe/Madrid
+
+# Host directory to mount as workspace (default: /root)
+# This is the directory you'll see when you open code-server
+WORKSPACE=/root
 `
 
 const CODE_DOCKER_COMPOSE = `# FnKit Code — code-server (VS Code in the browser)
-# Provides a full VS Code IDE accessible via the browser
+# Provides a full VS Code IDE accessible via the browser with full host access
 # Uses linuxserver/code-server for easy setup with persistent config
+#
+# Features:
+#   - Host filesystem mounted as workspace (see & edit all host files)
+#   - Docker socket mounted (run docker/fnkit commands from terminal)
+#   - fnkit CLI auto-installed on first startup
 #
 # Setup:
 #   1. Copy .env.example to .env and set your passwords
@@ -38,14 +47,16 @@ services:
     container_name: fnkit-code
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
+      - PUID=0
+      - PGID=0
       - TZ=\${TZ:-Europe/Madrid}
       - PASSWORD=\${PASSWORD:-changeme}
       - SUDO_PASSWORD=\${SUDO_PASSWORD:-changeme}
       - DEFAULT_WORKSPACE=/config/workspace
     volumes:
       - code-server-config:/config
+      - \${WORKSPACE:-/root}:/config/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - fnkit-network
     labels:
@@ -69,11 +80,46 @@ networks:
     external: true
 `
 
+// Init script that runs on container startup to install fnkit + docker CLI
+const CODE_INIT_SCRIPT = `#!/bin/bash
+# FnKit code-server init script
+# Installs fnkit CLI and Docker CLI on container startup
+# Placed in /config/custom-cont-init.d/ (linuxserver convention)
+
+set -e
+
+echo "╔════════════════════════════════════════════╗"
+echo "║  🔧 FnKit code-server init                ║"
+echo "╚════════════════════════════════════════════╝"
+
+# Install Docker CLI if not present
+if ! command -v docker &> /dev/null; then
+  echo "📦 Installing Docker CLI..."
+  apt-get update -qq
+  apt-get install -y -qq docker.io --no-install-recommends > /dev/null 2>&1
+  rm -rf /var/lib/apt/lists/*
+  echo "✅ Docker CLI installed"
+else
+  echo "✅ Docker CLI already installed"
+fi
+
+# Install/update fnkit from GitHub releases
+FNKIT_BIN="/usr/local/bin/fnkit"
+echo "📦 Installing fnkit CLI from GitHub releases..."
+curl -fsSL https://github.com/functionkit/fnkit/releases/latest/download/fnkit-linux-x64 -o "\$FNKIT_BIN"
+chmod +x "\$FNKIT_BIN"
+echo "✅ fnkit installed: \$(\$FNKIT_BIN --version 2>/dev/null || echo 'ready')"
+
+echo ""
+echo "🚀 code-server ready with fnkit + docker access"
+echo ""
+`
+
 const CODE_README = `# FnKit Code
 
 VS Code in the browser powered by [code-server](https://github.com/coder/code-server).
 Access a full development environment from anywhere — edit code, use the terminal,
-install extensions, and develop your fnkit functions remotely.
+install extensions, and manage your entire fnkit platform remotely.
 
 ## Architecture
 
@@ -81,9 +127,21 @@ install extensions, and develop your fnkit functions remotely.
 Browser → Caddy (code.example.com, TLS) → fnkit-code:8443 (code-server)
                                                 ├── Full VS Code IDE
                                                 ├── Integrated terminal
-                                                ├── Extension support
-                                                └── Persistent config & workspace
+                                                ├── Host filesystem access
+                                                ├── Docker CLI + fnkit CLI
+                                                └── Persistent config & extensions
 \`\`\`
+
+## What's Included
+
+Code-server starts with full host access out of the box:
+
+| Feature | How |
+|---------|-----|
+| **Host filesystem** | Your home directory is mounted as the workspace |
+| **Docker CLI** | Docker socket mounted — run \`docker ps\`, \`docker logs\`, etc. |
+| **fnkit CLI** | Auto-installed from GitHub releases on first startup |
+| **Extensions** | Persisted in Docker volume across restarts |
 
 ## Quick Start
 
@@ -99,6 +157,22 @@ cp .env.example .env
 docker compose up -d
 
 # Access at http://localhost:8443
+\`\`\`
+
+When you open code-server, you'll see your host files directly:
+\`\`\`
+📁 fnkit/
+📁 fnkit-cache/
+📁 fnkit-gateway/
+📁 fnkit-proxy/
+📁 ...
+\`\`\`
+
+And from the integrated terminal:
+\`\`\`bash
+fnkit container ls          # manage containers
+fnkit cache start           # start services
+docker ps                   # docker access
 \`\`\`
 
 ## Adding a Domain
@@ -130,14 +204,16 @@ docker exec fnkit-proxy caddy reload --config /etc/caddy/Caddyfile
 | \`PASSWORD\` | changeme | Password to access code-server |
 | \`SUDO_PASSWORD\` | changeme | Sudo password inside the container |
 | \`TZ\` | Europe/Madrid | Container timezone |
+| \`WORKSPACE\` | /root | Host directory to mount as workspace |
 
 ## Persistent Data
 
 All configuration and workspace files are stored in the \`code-server-config\` Docker volume:
 
-- \`/config/workspace\` — Default workspace directory
+- \`/config/workspace\` — Mounted host directory (your home)
 - \`/config/data\` — VS Code settings, extensions, state
 - \`/config/.config\` — code-server configuration
+- \`/config/custom-cont-init.d/\` — Startup scripts (fnkit + docker install)
 
 Data survives container restarts and upgrades.
 
@@ -145,8 +221,9 @@ Data survives container restarts and upgrades.
 
 - code-server has its own password authentication (separate from the fnkit gateway)
 - The proxy routes directly to code-server (bypasses the gateway)
-- Install system packages with sudo inside the integrated terminal
-- Extensions are persisted in the config volume
+- Runs as root (PUID=0) so fnkit and docker commands work without permission issues
+- The Docker socket is mounted so you can manage all containers from the terminal
+- fnkit is pulled from GitHub releases and auto-updated on each container restart
 - To reset everything: \`docker volume rm code-server-config\`
 `
 
@@ -156,6 +233,7 @@ export interface CodeOptions {
   sudoPassword?: string
   tz?: string
   domain?: string
+  workspace?: string
 }
 
 export async function codeInit(options: CodeOptions = {}): Promise<boolean> {
@@ -169,7 +247,7 @@ export async function codeInit(options: CodeOptions = {}): Promise<boolean> {
     return false
   }
 
-  // Create directory
+  // Create directory and init script directory
   mkdirSync(targetDir, { recursive: true })
 
   // Write files
@@ -215,6 +293,11 @@ export async function codeInit(options: CodeOptions = {}): Promise<boolean> {
   console.log('   5. (Optional) Add a domain with HTTPS:')
   console.log('      fnkit code proxy code.example.com')
   console.log('')
+  console.log('   Included out of the box:')
+  console.log('   ✅ Host filesystem mounted as workspace')
+  console.log('   ✅ Docker CLI (docker socket mounted)')
+  console.log('   ✅ fnkit CLI (auto-installed from GitHub releases)')
+  console.log('')
   console.log('   Architecture:')
   console.log('   Browser → Caddy (HTTPS) → fnkit-code:8443 (VS Code)')
   console.log('')
@@ -245,7 +328,11 @@ export async function codeStart(options: CodeOptions = {}): Promise<boolean> {
   const password = options.password || 'changeme'
   const sudoPassword = options.sudoPassword || 'changeme'
   const tz = options.tz || 'Europe/Madrid'
+  const workspace = options.workspace || '/root'
 
+  // Create a temp directory for the init script and write it
+  // The linuxserver image runs scripts from /config/custom-cont-init.d/
+  // We'll create a volume for config and inject the script after start
   const args = [
     'run',
     '-d',
@@ -259,10 +346,14 @@ export async function codeStart(options: CodeOptions = {}): Promise<boolean> {
     'unless-stopped',
     '-v',
     'fnkit-code-config:/config',
+    '-v',
+    `${workspace}:/config/workspace`,
+    '-v',
+    '/var/run/docker.sock:/var/run/docker.sock',
     '-e',
-    'PUID=1000',
+    'PUID=0',
     '-e',
-    'PGID=1000',
+    'PGID=0',
     '-e',
     `TZ=${tz}`,
     '-e',
@@ -280,25 +371,77 @@ export async function codeStart(options: CodeOptions = {}): Promise<boolean> {
   logger.step('Starting code-server container...')
   const result = await exec('docker', args)
 
-  if (result.success) {
-    logger.success('Code-server started: http://localhost:8443')
-    logger.newline()
-    logger.info('Access VS Code in your browser at:')
-    logger.dim('  http://localhost:8443')
-    logger.newline()
-    if (password === 'changeme') {
-      logger.warn('Using default password "changeme" — change with --password')
-    }
-    logger.newline()
-    logger.info('Add a domain with HTTPS:')
-    logger.dim('  fnkit code proxy code.example.com')
-    logger.newline()
-    return true
-  } else {
+  if (!result.success) {
     logger.error('Failed to start code-server')
     logger.dim(result.stderr)
     return false
   }
+
+  // Inject the init script into the container for future restarts
+  logger.step('Installing fnkit CLI init script...')
+  await exec('docker', [
+    'exec',
+    CODE_CONTAINER,
+    'mkdir',
+    '-p',
+    '/config/custom-cont-init.d',
+  ])
+
+  // Write the init script into the container
+  await exec('docker', [
+    'exec',
+    CODE_CONTAINER,
+    'bash',
+    '-c',
+    `cat > /config/custom-cont-init.d/install-fnkit.sh << 'FNKIT_INIT_EOF'\n${CODE_INIT_SCRIPT.trim()}\nFNKIT_INIT_EOF`,
+  ])
+  await exec('docker', [
+    'exec',
+    CODE_CONTAINER,
+    'chmod',
+    '+x',
+    '/config/custom-cont-init.d/install-fnkit.sh',
+  ])
+
+  // Run the init script now (first time)
+  logger.step('Installing fnkit + Docker CLI inside container...')
+  const installResult = await exec('docker', [
+    'exec',
+    CODE_CONTAINER,
+    'bash',
+    '/config/custom-cont-init.d/install-fnkit.sh',
+  ])
+
+  if (installResult.success) {
+    logger.success('fnkit CLI installed inside code-server')
+    logger.success('Docker CLI installed inside code-server')
+  } else {
+    logger.warn('Init script had issues (code-server still works)')
+    if (installResult.stderr) logger.dim(installResult.stderr)
+  }
+
+  logger.newline()
+  logger.success('Code-server started: http://localhost:8443')
+  logger.newline()
+  logger.info('Access VS Code in your browser at:')
+  logger.dim('  http://localhost:8443')
+  logger.newline()
+  if (password === 'changeme') {
+    logger.warn('Using default password "changeme" — change with --password')
+    logger.newline()
+  }
+  logger.info(`Workspace: ${workspace} (host filesystem)`)
+  logger.newline()
+  logger.info('From the terminal inside code-server:')
+  logger.dim('  fnkit container ls          # manage containers')
+  logger.dim('  fnkit cache start           # start services')
+  logger.dim('  docker ps                   # docker access')
+  logger.newline()
+  logger.info('Add a domain with HTTPS:')
+  logger.dim('  fnkit code proxy code.example.com')
+  logger.newline()
+
+  return true
 }
 
 export async function codeStop(): Promise<boolean> {

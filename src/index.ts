@@ -764,12 +764,14 @@ Commands:
 Options:
   --password <pass>     code-server password (default: changeme)
   --sudo-password <pass> Sudo password inside container
+  --workspace <path>    Host directory to mount (default: /root)
   --tz <timezone>       Timezone (default: Europe/Madrid)
 
 Examples:
   fnkit code init                           Create fnkit-code/ directory
   fnkit code start                          Start code-server
   fnkit code start --password secret        Start with custom password
+  fnkit code start --workspace /home/user   Mount specific host directory
   fnkit code stop                           Stop code-server
   fnkit code proxy code.example.com         Route domain via Caddy
 `)
@@ -779,6 +781,7 @@ Examples:
           output: options.output as string,
           password: options.password as string,
           sudoPassword: (options['sudo-password'] as string),
+          workspace: options.workspace as string,
           tz: options.tz as string,
           domain: positionalArgs[1],
         })
