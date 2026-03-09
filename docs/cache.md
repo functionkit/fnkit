@@ -150,24 +150,139 @@ $cache->setex('key', 300, 'value');
 $value = $cache->get('key');
 ```
 
-## Managing the Cache
+## Observing the Cache
+
+Browse and inspect cache contents directly from the CLI.
+
+### View All Keys
 
 ```bash
-# Stop the cache (data persists in Docker volume)
-fnkit cache stop
+# List all keys grouped by namespace
+fnkit cache view
 
-# Test with CLI
-docker exec fnkit-cache valkey-cli SET hello world
-docker exec fnkit-cache valkey-cli GET hello
+# Filter by pattern
+fnkit cache view "uns:*"
+fnkit cache view "fnkit:config:*"
+```
 
-# Monitor stats
-docker exec fnkit-cache valkey-cli INFO stats
+Output groups keys by namespace prefix (`fnkit:config`, `uns:data`, `fnkit:events`, etc.) with type annotations for non-string keys.
 
-# Flush all data
-docker exec fnkit-cache valkey-cli FLUSHALL
+### Get a Key Value
 
-# Remove persisted data
-docker volume rm fnkit-cache-data
+```bash
+# View any key — auto-detects type (string, list, set, hash, zset)
+fnkit cache get fnkit:config:uns-log
+fnkit cache get uns:topics
+fnkit cache get fnkit:events
+```
+
+For strings, JSON values are pretty-printed. Lists show indexed items, sets show members, hashes show field/value pairs, and sorted sets show members with scores.
+
+### Cache Statistics
+
+```bash
+fnkit cache stats
+```
+
+Shows:
+- **General** — key count, uptime, version, connected clients
+- **Memory** — used, peak, max, eviction policy, fragmentation ratio
+- **Performance** — commands processed, connections, hit/miss ratio, evicted/expired keys
+- **Key Namespaces** — breakdown of keys by prefix with counts
+
+## Managing Function Configs
+
+Functions like `uns-log` store their configuration in Valkey under `fnkit:config:*` keys. The `cache config` commands provide a convenient way to manage these.
+
+### List All Configs
+
+```bash
+fnkit cache config
+# or
+fnkit cache config ls
+```
+
+### View a Config
+
+```bash
+fnkit cache config get uns-log
+```
+
+### Set a Config
+
+```bash
+fnkit cache config set uns-log '{"table":"uns_log","topics":["v1.0/acme/factory1/mixing/line1/temperature"]}'
+```
+
+Values must be valid JSON. The config is stored at `fnkit:config:<name>` in Valkey.
+
+### Remove a Config
+
+```bash
+fnkit cache config remove uns-log
+```
+
+## Admin Operations
+
+### Remove a Key
+
+```bash
+fnkit cache remove mykey
+fnkit cache remove fnkit:config:old-function
+```
+
+### Flush All Data
+
+```bash
+fnkit cache flush
+```
+
+⚠️ This deletes **all** keys from the cache — configs, UNS data, events, traces, everything.
+
+## Key Namespaces
+
+The cache stores data from multiple fnkit components:
+
+| Namespace           | Used by          | Description                              |
+| ------------------- | ---------------- | ---------------------------------------- |
+| `fnkit:config:*`    | uns-log, etc.    | Function configuration (JSON)            |
+| `uns:topics`        | uns-framework    | SET of all discovered MQTT topic paths   |
+| `uns:data:<topic>`  | uns-framework    | Latest payload for a topic               |
+| `uns:prev:<topic>`  | uns-framework    | Previous payload for a topic             |
+| `uns:meta:<topic>`  | uns-framework    | Metadata (last_updated, count, etc.)     |
+| `fnkit:events`      | gateway          | LIST of event JSON objects               |
+| `fnkit:traces`      | gateway          | LIST of request trace JSON objects       |
+| `fnkit:metrics:*`   | gateway          | Per-container metrics (JSON)             |
+| `fnkit:pipeline:*`  | gateway          | Orchestrator pipeline definitions        |
+
+## Command Reference
+
+```
+fnkit cache <command> [options]
+
+Lifecycle:
+  init                          Create cache project files
+  start                         Start the cache container
+  stop                          Stop the cache container
+
+Observe:
+  view [pattern]                List all keys (grouped by namespace)
+  get <key>                     Show value of a specific key
+  stats                         Show cache statistics
+
+Config:
+  config                        List all function configs
+  config ls                     List all function configs
+  config get <name>             View a specific function config
+  config set <name> <json>      Set a function config
+  config remove <name>          Remove a function config
+
+Admin:
+  remove <key>                  Delete a specific key
+  flush                         Delete ALL keys from the cache
+
+Options:
+  --maxmemory <size>            Max memory for start (default: 256mb)
 ```
 
 ## Why Valkey?

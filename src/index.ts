@@ -576,26 +576,55 @@ Powered by Valkey (open-source, BSD licensed).
 Usage:
   fnkit cache <command> [options]
 
-Commands:
+Lifecycle:
   init                  Create cache project files
   start                 Start the cache container
   stop                  Stop the cache container
 
+Observe:
+  view [pattern]        List all keys (grouped by namespace)
+  get <key>             Show value of a specific key
+  stats                 Show cache statistics (memory, hits, uptime)
+
+Config:
+  config                List all function configs (fnkit:config:*)
+  config ls             List all function configs
+  config get <name>     View a specific function config
+  config set <name> <json>  Set a function config
+  config remove <name>  Remove a function config
+
+Admin:
+  remove <key>          Delete a specific key
+  flush                 Delete ALL keys from the cache
+
 Options:
-  --maxmemory <size>    Max memory (default: 256mb)
+  --maxmemory <size>    Max memory for start (default: 256mb)
 
 Examples:
   fnkit cache init                      Create cache project
   fnkit cache start                     Start cache (Valkey)
   fnkit cache start --maxmemory 512mb   Start with custom memory limit
   fnkit cache stop                      Stop the cache
+
+  fnkit cache view                      List all keys
+  fnkit cache view "uns:*"              List UNS keys only
+  fnkit cache get fnkit:config:uns-log  Show a specific key value
+  fnkit cache stats                     Show memory, hits, uptime
+
+  fnkit cache config                    List all function configs
+  fnkit cache config get uns-log        View uns-log config
+  fnkit cache config set uns-log '{"table":"uns_log","topics":["v1.0/..."]}'
+  fnkit cache config remove uns-log     Remove uns-log config
+
+  fnkit cache remove mykey              Delete a key
+  fnkit cache flush                     Flush all data
 `)
           process.exit(0)
         }
         const cacheSuccess = await cache(cacheSubcmd, {
           output: options.output as string,
           maxmemory: options.maxmemory as string,
-        })
+        }, positionalArgs.slice(1))
         process.exit(cacheSuccess ? 0 : 1)
         break
 
