@@ -60,6 +60,21 @@ bun run build:all
 #   dist/fnkit-windows-x64.exe
 ```
 
+## Update
+
+```bash
+fnkit update
+```
+
+This checks for the latest release on GitHub, downloads the correct binary for your platform, and replaces the installed version. If you're already on the latest version, it will let you know.
+
+fnkit also checks for updates automatically once every 24 hours. If a newer version is available, you'll see a one-line notice after any command:
+
+```
+⚠ A new version of fnkit is available: v0.14.0 (current: v0.13.0)
+  Run "fnkit update" to upgrade
+```
+
 ## Uninstall
 
 ```bash

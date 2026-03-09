@@ -6,7 +6,7 @@ import { publish } from './commands/publish'
 import { doctor } from './commands/doctor'
 import { run } from './commands/run'
 import { init } from './commands/init'
-import { global, uninstall } from './commands/global'
+import { global, uninstall, update, checkForUpdates } from './commands/global'
 import { containers } from './commands/containers'
 import { gateway } from './commands/gateway'
 import { deploy } from './commands/deploy'
@@ -60,6 +60,7 @@ Commands:
   uns ...                            UNS plugin commands
 
   doctor [runtime]                   Check runtime dependencies
+  update                             Update fnkit to latest version
   install                            Install fnkit globally
   uninstall                          Remove global installation
 
@@ -716,6 +717,11 @@ Examples:
         process.exit(installSuccess ? 0 : 1)
         break
 
+      case 'update':
+        const updateSuccess = await update(VERSION)
+        process.exit(updateSuccess ? 0 : 1)
+        break
+
       case 'uninstall':
         const uninstallSuccess = await uninstall()
         process.exit(uninstallSuccess ? 0 : 1)
@@ -898,6 +904,13 @@ Examples:
   } catch (error) {
     logger.error(`Error: ${error instanceof Error ? error.message : error}`)
     process.exit(1)
+  }
+
+  // Background update check (non-blocking, runs after command completes)
+  // Skip for update/install/uninstall/version/help commands
+  const skipCheckCommands = ['update', 'install', 'uninstall', 'version', '--version', '-v', 'help', '--help', '-h']
+  if (!skipCheckCommands.includes(command)) {
+    await checkForUpdates(VERSION)
   }
 }
 
